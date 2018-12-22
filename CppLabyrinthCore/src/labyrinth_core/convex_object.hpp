@@ -2,6 +2,7 @@
 #define SRC_LABYRINTH_CORE_CONVEX_OBJECT_HPP_
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 #include <valarray>
 #include <vector>
@@ -59,8 +60,13 @@ public:
 
 	struct RayIntersection {
 
-		bool isForward; // whether the ray goes into the face or not
-		// basically whether it goes from non-solid to solid or not
+		// if the intersection is forward, then all greater values of t
+		// satisfy the constraint of the hyperplane intersected, while lesser
+		// values do not.
+		// if the intersection is non-forward, all greater values of t
+		// do not satisfy the constraint of the hyperplane,
+		// but lesser values of t do.
+		bool isForward;
 		std::valarray<double> point;
 		double t;
 
@@ -84,19 +90,16 @@ public:
 		std::vector<RayIntersection> intersections;
 		for (const LinearConstraint& c: constraints) {
 			double denominator = (ray.vector * c.normal).sum();
-			if (denominator == 0) {
-				continue;
-			}
-
 			double numerator = c.threshold - (ray.point * c.normal).sum();
-			double t = numerator / denominator;
-			if (t <= 0) {
-				// then it doesn't really intersect it (it is a ray not a line)
-				continue;
-			}
+			double t = (std::abs(denominator) < 1e-5)?
+					-1000000:
+					numerator / denominator;
 
 			RayIntersection intersection;
 			intersection.isForward = (ray.point * c.normal).sum() > c.threshold;
+			if (t <= 0) {
+				intersection.isForward = !intersection.isForward;
+			}
 			intersection.point = ray.point + t * ray.vector;
 			intersection.t = t;
 			intersections.push_back(std::move(intersection));
@@ -118,8 +121,14 @@ public:
 			}
 		}
 		if (lastForward == -1) {
+			*foundAnything = false;
 			return RayIntersection();
 		}
+		if (intersections[lastForward].t <= 0) {
+			*foundAnything = false;
+			return RayIntersection();
+		}
+		*foundAnything = true;
 		return intersections[lastForward];
 	}
 

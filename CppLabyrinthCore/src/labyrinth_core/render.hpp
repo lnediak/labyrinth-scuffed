@@ -18,8 +18,8 @@ struct Slice {
 
 	std::valarray<double> camera;
 	std::valarray<double> forward;
-	std::valarray<double> up;
 	std::valarray<double> right;
+	std::valarray<double> up;
 
 };
 
@@ -35,8 +35,7 @@ std::valarray<uint32_t> renderObjects(const Slice& slice,
 		size_t width, size_t height, double fov) {
 	// 0.00872664625997164788462 = 0.5 * PI / 180
 	double tanFov = std::tan(fov * 0.00872664625997164788462);
-	double aspect = static_cast<double>(height) / width;
-	double scale = (aspect > 1)? 2 * tanFov / height : 2 * tanFov / width;
+	double scale = (height > width)? 2 * tanFov / height : 2 * tanFov / width;
 
 
 
@@ -49,8 +48,8 @@ std::valarray<uint32_t> renderObjects(const Slice& slice,
 	std::valarray<uint32_t> toreturn (backgroundColor, width * height);
 	for (size_t row = 0; row < height; row++) {
 		for (size_t col = 0; col < width; col++) {
-			double rcomponent = (col - width/2) * scale;
-			double ucomponent = (row - height/2) * scale;
+			double rcomponent = (col - width/2.0) * scale;
+			double ucomponent = (height/2.0 - row) * scale;
 			convex_object::Ray ray (numDims,
 					slice.forward +
 					rcomponent * slice.right +
