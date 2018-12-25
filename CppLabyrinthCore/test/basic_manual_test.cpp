@@ -5,7 +5,7 @@
 
 #include "libs/lodepng.h"
 
-#include "labyrinth_core/render.hpp"
+#include "basic_labyrinth_core/render.hpp"
 
 void genIMG(const render_convex_object::Slice& slice,
 		const convex_object::ConvexObject& object,

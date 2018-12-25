@@ -1,6 +1,7 @@
-#ifndef SRC_LABYRINTH_CORE_RENDER_HPP_
-#define SRC_LABYRINTH_CORE_RENDER_HPP_
+#ifndef SRC_BASIC_LABYRINTH_CORE_RENDER_HPP_
+#define SRC_BASIC_LABYRINTH_CORE_RENDER_HPP_
 
+#include <basic_labyrinth_core/convex_object.hpp>
 #include <algorithm>
 #include <utility>
 #include <valarray>
@@ -10,7 +11,6 @@
 
 #include <stdint.h>
 
-#include "convex_object.hpp"
 
 namespace render_convex_object {
 
@@ -79,4 +79,4 @@ std::valarray<uint32_t> renderObjects(const Slice& slice,
 
 }
 
-#endif /* SRC_LABYRINTH_CORE_RENDER_HPP_ */
+#endif /* SRC_BASIC_LABYRINTH_CORE_RENDER_HPP_ */
