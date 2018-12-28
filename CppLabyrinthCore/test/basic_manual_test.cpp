@@ -99,7 +99,7 @@ void gen4D() {
 			slice.up
 		};
 		std::stringstream ss;
-		ss << "/home/study/produce4drand/" << i << ".png";
+		ss << "/home/study/produce4drandrand/" << i << ".png";
 		genIMG(actual, object, ss.str());
 	}
 }

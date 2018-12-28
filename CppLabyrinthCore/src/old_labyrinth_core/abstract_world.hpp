@@ -1,9 +1,9 @@
-#ifndef SRC_LABYRINTH_CORE_ABSTRACT_WORLD_HPP_
-#define SRC_LABYRINTH_CORE_ABSTRACT_WORLD_HPP_
+#ifndef SRC_OLD_LABYRINTH_CORE_ABSTRACT_WORLD_HPP_
+#define SRC_OLD_LABYRINTH_CORE_ABSTRACT_WORLD_HPP_
 
+#include <old_labyrinth_core/color.hpp>
 #include <string>
 
-#include "labyrinth_core/color.hpp"
 
 namespace labyrinth_core {
 
@@ -39,4 +39,4 @@ public:
 
 }
 
-#endif /* SRC_LABYRINTH_CORE_ABSTRACT_WORLD_HPP_ */
+#endif /* SRC_OLD_LABYRINTH_CORE_ABSTRACT_WORLD_HPP_ */

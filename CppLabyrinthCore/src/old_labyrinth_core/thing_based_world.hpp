@@ -1,12 +1,12 @@
-#ifndef SRC_LABYRINTH_CORE_THING_BASED_WORLD_HPP_
-#define SRC_LABYRINTH_CORE_THING_BASED_WORLD_HPP_
+#ifndef SRC_OLD_LABYRINTH_CORE_THING_BASED_WORLD_HPP_
+#define SRC_OLD_LABYRINTH_CORE_THING_BASED_WORLD_HPP_
 
+#include <old_labyrinth_core/abstract_thing.hpp>
+#include <old_labyrinth_core/abstract_world.hpp>
 #include <limits>
 #include <map>
 #include <vector>
 
-#include "labyrinth_core/abstract_thing.hpp"
-#include "labyrinth_core/abstract_world.hpp"
 
 namespace labyrinth_core {
 
@@ -101,4 +101,4 @@ public:
 
 }
 
-#endif /* SRC_LABYRINTH_CORE_THING_BASED_WORLD_HPP_ */
+#endif /* SRC_OLD_LABYRINTH_CORE_THING_BASED_WORLD_HPP_ */
