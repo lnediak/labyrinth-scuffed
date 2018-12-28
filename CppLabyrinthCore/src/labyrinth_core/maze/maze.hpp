@@ -21,8 +21,8 @@ class Maze {
 	size_t* tempProds;
 
 public:
-	Maze(size_t numDims, std::uint32_t* inDimensions): numDims(numDims) {
-		dimensions = new std::uint64_t[numDims];
+	Maze(size_t numDims, const std::uint32_t* inDimensions): numDims(numDims) {
+		dimensions = new std::uint32_t[numDims];
 		tempProds = new std::uint64_t[numDims];
 		size_t currProd = 1;
 		for (std::int64_t j = numDims - 1; j >= 0; j--) {
@@ -30,7 +30,10 @@ public:
 			currProd *= (dimensions[j] = inDimensions[j]);
 		}
 		dataLength = currProd;
-		data = new std::uint8_t[dataLength](0);
+		data = new std::uint8_t[dataLength];
+		for (size_t i = 0; i < dataLength; i++) {
+			data[i] = 1;
+		}
 	}
 
 	Maze(Maze& other) = delete;
@@ -51,8 +54,14 @@ public:
 	 * Shallow copy.
 	 */
 	Maze& operator()(const Maze& other, int) {
-		~Maze();
-		new (this) Maze(other);
+		delete[] data;
+		data = other.data;
+		dataLength = other.dataLength;
+		numDims = other.numDims;
+		delete[] dimensions;
+		dimensions = other.dimensions;
+		delete[] tempProds;
+		tempProds = other.tempProds;
 		return *this;
 	}
 
@@ -86,8 +95,8 @@ public:
 	}
 
 	size_t getInd(const std::int32_t* location) const {
-		std::uint32_t* tmpTempProds = tempProds;
-		std::uint32_t* tempProdsEnd = tempProds + numDims;
+		std::uint64_t* tmpTempProds = tempProds;
+		std::uint64_t* tempProdsEnd = tempProds + numDims;
 		size_t result = 0;
 		for (; tmpTempProds < tempProdsEnd; ++tmpTempProds, ++location) {
 			result += (*tmpTempProds) * (*location);
@@ -114,7 +123,8 @@ public:
 	/**
 	 * Offsets is location relative to the center of the block.
 	 */
-	static Color getBlockColor(std::uint8_t block, const double* offsets) {
+	static Color getBlockColor(std::uint8_t block,
+			size_t numDims, const double* offsets) {
 		if (block == 0) {
 			return Color{0, 0, 0, 0};
 		} else {

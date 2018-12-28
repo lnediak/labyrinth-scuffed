@@ -16,7 +16,7 @@ class MazeKernel {
 	double* camera;
 
 public:
-	MazeKernel(const Maze& maze, double* inCamera): maze(maze, 0) {
+	MazeKernel(const Maze& maze, const double* inCamera): maze(maze, 0) {
 		camera = new double[maze.getNumDims()];
 		setCamera(inCamera);
 	}
@@ -29,14 +29,15 @@ public:
 	MazeKernel& operator=(MazeKernel&& other) = delete;
 
 	~MazeKernel() {
+		maze.invalidate();
 		delete[] camera;
 	}
 
-	void setCamera(double* newCamera) {
+	void setCamera(const double* newCamera) {
 		std::copy(newCamera, newCamera + maze.getNumDims(), camera);
 	}
 
-	Color operator()(double* direction, Color backgroundColor);
+	Color operator()(const double* direction, Color backgroundColor);
 
 };
 

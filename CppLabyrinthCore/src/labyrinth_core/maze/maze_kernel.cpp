@@ -6,10 +6,13 @@
 
 namespace {
 
-bool isInBounds(size_t numDims, std::int32_t* location, std::uint32_t* dimensions) {
-	std::int32_t* locationEnd = location + numDims;
+bool isInBounds(size_t numDims,
+		const std::int32_t* location,
+		const std::uint32_t* dimensions) {
+	const std::int32_t* locationEnd = location + numDims;
 	for (; location < locationEnd; ++location, ++dimensions) {
-		if ((*location < 0) || (*location >= *dimensions)) {
+		if ((*location < 0) ||
+				(static_cast<std::uint32_t>(*location) >= *dimensions)) {
 			return false;
 		}
 	}
@@ -19,7 +22,7 @@ bool isInBounds(size_t numDims, std::int32_t* location, std::uint32_t* dimension
 }
 
 Color labyrinth_core::maze::MazeKernel::operator()(
-		double* direction, Color backgroundColor) {
+		const double* direction, Color backgroundColor) {
 	size_t numDims = maze.getNumDims();
 	std::uint32_t* dimensions = maze.getDimensions();
 	double* steps = new double[numDims];
@@ -46,7 +49,7 @@ Color labyrinth_core::maze::MazeKernel::operator()(
 	}
 	bool intersects = true;
 	// just a hack (NO GOTOS!); equivalent to if in this case
-	while (!isInBounds(numDims, currBlock, dimensions)) {
+	while/* if */ (!isInBounds(numDims, currBlock, dimensions)) {
 		// check if it intersects the maze at all
 		// using convex object method
 		struct RayIntersection {
@@ -78,7 +81,7 @@ Color labyrinth_core::maze::MazeKernel::operator()(
 			double t2 = isDiriBelowThreshold?
 					-1000000: numerator2 / -diri;
 
-			intersections[i + numDims] = t2;
+			intersections[i + numDims].t = t2;
 			intersections[i + numDims].isForward = (t2 > 0)?
 					numerator2 < 0: numerator2 >= 0;
 		}
@@ -105,12 +108,20 @@ Color labyrinth_core::maze::MazeKernel::operator()(
 			delete[] intersections;
 			break;
 		}
-		if (intersections[lastForward].t <= 0) {
+		double t = intersections[lastForward].t;
+		if (t <= 0) {
 			intersects = false;
 			delete[] intersections;
 			break;
 		}
 		delete[] intersections;
+		// just for the sake of floating-point imprecision.
+		t += 1e-6;
+		for (size_t i = 0; i < numDims; i++) {
+			location[i] += direction[i] * t;
+			currBlock[i] = std::floor(location[i] + 0.5);
+			offsets[i] = location[i] - currBlock[i];
+		}
 		break;
 	}
 
@@ -148,7 +159,7 @@ Color labyrinth_core::maze::MazeKernel::operator()(
 			if (block == 0) {
 				continue;
 			}
-			result = Maze::getBlockColor(block, offsets);
+			result = Maze::getBlockColor(block, numDims, offsets);
 			break;
 		}
 	}
