@@ -18,7 +18,7 @@ public:
 			size_t width, size_t height, double fov) {
 		// 0.00872664625997164788462 = 0.5 * PI / 180
 		double tanFov = std::tan(fov * 0.00872664625997164788462);
-		double scale = (height > width)? 2 * tanFov / height : 2 * tanFov / width;
+		double scale = (height > width)? 2 * tanFov / height: 2 * tanFov / width;
 
 		MazeKernel kernel (maze, camera);
 		size_t numDims = maze.getNumDims();
