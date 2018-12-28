@@ -44,54 +44,113 @@ Color labyrinth_core::maze::MazeKernel::operator()(
 		currBlock[i] = std::floor(location[i] + 0.5);
 		offsets[i] = location[i] - currBlock[i];
 	}
-	Color result = backgroundColor;
-	if (!isInBounds(numDims, currBlock, dimensions)) {
+	bool intersects = true;
+	// just a hack (NO GOTOS!); equivalent to if in this case
+	while (!isInBounds(numDims, currBlock, dimensions)) {
 		// check if it intersects the maze at all
 		// using convex object method
 		struct RayIntersection {
+
 			double t;
 			bool isForward;
+
+			bool operator<(const RayIntersection& other) const noexcept {
+				return t < other.t;
+			}
+
 		};
 		RayIntersection* intersections = new RayIntersection[numDims * 2];
 		for (size_t i = 0; i < numDims; i++) {
-			// FINISH THIS
-		}
+			// threshold = <normal, some_point_on_plane>
+			// t = (threshold - <camera, normal>) / <ray, normal>
+			double numerator1 = dimensions[i] + 0.5 - location[i];
+			double diri = direction[i];
+			bool isDiriBelowThreshold = std::abs(diri) < 1e-6;
+			double t1 = isDiriBelowThreshold?
+					-1000000: numerator1 / diri;
 
-		delete[] intersections;
-	}
-	while (true) {
-		size_t minStepInd = 0;
-		double minStep = steps[0] - 0.5 - signs[0] * offsets[0];
-		double currStep;
-		for (size_t i = 1; i < numDims; i++) {
-			currStep = steps[i] - 0.5 - signs[i] * offsets[i];
-			if (currStep < minStep) {
-				minStepInd = i;
-				minStep = currStep;
-			}
+			intersections[i].t = t1;
+			intersections[i].isForward = (t1 > 0)?
+					numerator1 < 0: numerator1 >= 0;
+
+
+			double numerator2 = -0.5 + location[i];
+			double t2 = isDiriBelowThreshold?
+					-1000000: numerator2 / -diri;
+
+			intersections[i + numDims] = t2;
+			intersections[i + numDims].isForward = (t2 > 0)?
+					numerator2 < 0: numerator2 >= 0;
 		}
-		// we can safely assume that we don't have a parallel plane selected
-		for (size_t i = 0; i < numDims; i++) {
-			location[i] += direction[i] * minStep;
-			if (i == minStepInd) {
-				// because of floating-point imprecision
-				currBlock[i] += signs[i];
+		std::sort(intersections, intersections + numDims * 2);
+		int64_t lastForward = -1;
+		bool encounteredNonForward = false;
+		for (size_t i = 0; i < numDims * 2; i++) {
+			if (intersections[i].isForward) {
+				if (encounteredNonForward) {
+					intersects = false;
+					break;
+				}
+				lastForward = i;
 			} else {
-				// in theory this is not necessary,
-				// but floating-point imprecision makes me paranoid
-				currBlock[i] = std::floor(location[i] + 0.5);
+				encounteredNonForward = true;
 			}
-			offsets[i] = location[i] - currBlock[i];
 		}
-		if (!isInBounds(numDims, currBlock, dimensions)) {
+		if (!intersects) {
+			delete[] intersections;
 			break;
 		}
-		std::uint8_t block = maze.getBlock(currBlock);
-		if (block == 0) {
-			continue;
+		if (lastForward == -1) {
+			intersects = false;
+			delete[] intersections;
+			break;
 		}
-		result = Maze::getBlockColor(block, offsets);
+		if (intersections[lastForward].t <= 0) {
+			intersects = false;
+			delete[] intersections;
+			break;
+		}
+		delete[] intersections;
 		break;
+	}
+
+
+	Color result = backgroundColor;
+	if (intersects) {
+		while (true) {
+			size_t minStepInd = 0;
+			double minStep = steps[0] - 0.5 - signs[0] * offsets[0];
+			double currStep;
+			for (size_t i = 1; i < numDims; i++) {
+				currStep = steps[i] - 0.5 - signs[i] * offsets[i];
+				if (currStep < minStep) {
+					minStepInd = i;
+					minStep = currStep;
+				}
+			}
+			// we can safely assume that we don't have a parallel plane selected
+			for (size_t i = 0; i < numDims; i++) {
+				location[i] += direction[i] * minStep;
+				if (i == minStepInd) {
+					// because of floating-point imprecision
+					currBlock[i] += signs[i];
+				} else {
+					// in theory this is not necessary,
+					// but floating-point imprecision makes me paranoid
+					currBlock[i] = std::floor(location[i] + 0.5);
+				}
+				offsets[i] = location[i] - currBlock[i];
+			}
+			if (!isInBounds(numDims, currBlock, dimensions)) {
+				break;
+			}
+			std::uint8_t block = maze.getBlock(currBlock);
+			if (block == 0) {
+				continue;
+			}
+			result = Maze::getBlockColor(block, offsets);
+			break;
+		}
 	}
 
 	delete[] offsets;
