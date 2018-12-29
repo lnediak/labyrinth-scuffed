@@ -33,7 +33,7 @@ public:
 		dataLength = currProd;
 		data = new std::uint8_t[dataLength];
 		std::mt19937 mtrand (1);
-		std::uniform_int_distribution<std::int16_t> distro (0, 200);
+		std::uniform_int_distribution<std::int16_t> distro (0, 20);
 		for (size_t i = 0; i < dataLength; i++) {
 			data[i] = distro(mtrand) > 0? 0: 1;
 		}

@@ -14,7 +14,7 @@ int main() {
 	labyrinth_core::maze::Maze maze (numDims, inDimensions);
 	std::uint8_t* output = new std::uint8_t[width * height * 4];
 	const double camera[] = {-5, -5, 5};
-	const double theta = 45;
+	const double theta = 44.8;
 	const double forward[] = {std::cos(theta), std::sin(theta), 0};
 	const double right[] = {-std::sin(theta), std::cos(theta), 0};
 	const double up[] = {0, 0, 1};

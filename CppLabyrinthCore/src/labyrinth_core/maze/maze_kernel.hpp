@@ -5,6 +5,7 @@
 #include <labyrinth_core/maze/maze.hpp>
 
 #include <algorithm>
+#include <iostream>
 
 #include <cmath>
 
@@ -192,16 +193,16 @@ public:
 				}
 
 				//size_t minStepInd = 0;
-				double minStep = steps[0] - 0.5 - signs[0] * offsets[0];
+				double minStep = steps[0] * (0.5 - signs[0] * offsets[0]);
 				double currStep;
 				for (size_t i = 1; i < numDims; i++) {
-					currStep = steps[i] - 0.5 - signs[i] * offsets[i];
+					currStep = steps[i] * (0.5 - signs[i] * offsets[i]);
 					if (currStep < minStep) {
 						//minStepInd = i;
 						minStep = currStep;
 					}
 				}
-				// paranoia
+				// paranoia (it actually doesn't work without this)
 				minStep += 1e-6;
 				// we can safely assume that we don't have a parallel plane selected
 				for (iter_currBlock = currBlock,
