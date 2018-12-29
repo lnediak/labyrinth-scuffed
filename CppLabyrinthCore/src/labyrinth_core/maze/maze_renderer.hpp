@@ -34,15 +34,22 @@ public:
 			for (size_t col = 0; col < width; col++) {
 				double rcomponent = (col - width/2.0) * scale;
 				double ucomponent = (height/2.0 - row) * scale;
+				double magnitude = 0;
 				// just a loop
 				for (iter_tmpdir = tmpdirection, iter_forward = forward,
 						iter_right = right, iter_up = up;
 						iter_tmpdir < tmpdirection_end;
 						++iter_tmpdir, ++iter_forward,
 						++iter_right, ++iter_up) {
-					*iter_tmpdir = (*iter_forward) +
+					double value = *iter_tmpdir = (*iter_forward) +
 							rcomponent * (*iter_right) +
 							ucomponent * (*iter_up);
+					magnitude += value * value;
+				}
+				magnitude = std::sqrt(magnitude);
+				for (iter_tmpdir = tmpdirection;
+						iter_tmpdir < tmpdirection_end; ++iter_tmpdir) {
+					*iter_tmpdir /= magnitude;
 				}
 
 				tmpcolor = kernel(tmpdirection, backgroundColor);

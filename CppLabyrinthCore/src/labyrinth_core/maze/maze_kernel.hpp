@@ -174,8 +174,7 @@ public:
 						iter_direction < dir_end;
 						++iter_currBlock, ++iter_location,
 						++iter_offsets, ++iter_direction) {
-					double loc = *iter_location =
-							*iter_location + (*iter_direction) * t;
+					double loc = (*iter_location += (*iter_direction) * t);
 					double currB = *iter_currBlock = std::floor(loc + 0.5);
 					*iter_offsets = loc - currB;
 				}
@@ -212,8 +211,7 @@ public:
 						iter_direction < dir_end;
 						++iter_currBlock, ++iter_location,
 						++iter_offsets, ++iter_direction) {
-					double loc = *iter_location =
-							*iter_location + (*iter_direction) * minStep;
+					double loc = (*iter_location += (*iter_direction) * minStep);
 					double currB = *iter_currBlock = std::floor(loc + 0.5);
 					*iter_offsets = loc - currB;
 				}
