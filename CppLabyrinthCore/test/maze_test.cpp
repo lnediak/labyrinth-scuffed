@@ -22,8 +22,9 @@ int main() {
 	labyrinth_core::maze::MazeRenderer::render(output, maze,
 			camera, forward, right, up,
 			width, height, 100);
-	std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(
-			std::chrono::high_resolution_clock::now() - start).count() << std::endl;
+	std::cout << 1000000000/static_cast<double>(
+			std::chrono::duration_cast<std::chrono::nanoseconds>(
+			std::chrono::high_resolution_clock::now() - start).count()) << std::endl;
 	unsigned lodepng_error = lodepng::encode("/home/study/produced.png", output,
 			width, height);
 	delete[] output;

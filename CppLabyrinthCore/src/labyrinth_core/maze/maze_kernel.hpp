@@ -28,19 +28,6 @@ class MazeKernel {
 	// currBlock + offsets = location
 	double* offsets;
 
-	struct RayIntersection {
-
-		double t;
-		bool isForward;
-
-		bool operator<(const RayIntersection& other) const noexcept {
-			return t < other.t;
-		}
-
-	};
-
-	RayIntersection* intersections;
-
 public:
 	MazeKernel(const Maze& maze, const double* inCamera): maze(maze, 0) {
 		numDims = maze.getNumDims();
@@ -53,7 +40,6 @@ public:
 		currBlock = new std::int32_t[numDims];
 		location = new double[numDims];
 		offsets = new double[numDims];
-		intersections = new RayIntersection[numDims * 2];
 	}
 
 	MazeKernel(MazeKernel& other) = delete;
@@ -73,7 +59,6 @@ public:
 		delete[] currBlock;
 		delete[] location;
 		delete[] offsets;
-		delete[] intersections;
 	}
 
 	void setCamera(const double* newCamera) {
@@ -97,80 +82,102 @@ private:
 	double intersectMaze(const double* direction, bool* intersects) {
 		// check if it intersects the maze at all
 		// using convex object method
+		double lastForwardT = -1000000;
+		double firstNonForwardT = 1000000;
 		for (size_t i = 0; i < numDims; i++) {
 			// threshold = <normal, some_point_on_plane>
 			// t = (threshold - <camera, normal>) / <ray, normal>
 			double numerator1 = dimensions[i] - 0.5 - location[i];
 			double diri = direction[i];
-			bool isDiriBelowThreshold = std::abs(diri) < 1e-6;
+			bool isDiriBelowThreshold = (-1e-6 < diri) && (diri < 1e-6);
 			double t1 = isDiriBelowThreshold?
 					-1000000: numerator1 / diri;
-
-			intersections[i].t = t1;
-			intersections[i].isForward = (t1 > 0)?
+			bool isForward1 = (t1 > 0)?
 					numerator1 < 0: numerator1 >= 0;
+			if (isForward1) {
+				if (t1 > lastForwardT) {
+					lastForwardT = t1;
+				}
+			} else {
+				if (t1 < firstNonForwardT) {
+					firstNonForwardT = t1;
+				}
+			}
 
 
 			double numerator2 = 0.5 + location[i];
 			double t2 = isDiriBelowThreshold?
 					-1000000: numerator2 / -diri;
-
-			intersections[i + numDims].t = t2;
-			intersections[i + numDims].isForward = (t2 > 0)?
+			bool isForward2 = (t2 > 0)?
 					numerator2 < 0: numerator2 >= 0;
-		}
-		std::sort(intersections, intersections + numDims * 2);
-		int64_t lastForward = -1;
-		bool encounteredNonForward = false;
-		for (size_t i = 0; i < numDims * 2; i++) {
-			if (intersections[i].isForward) {
-				if (encounteredNonForward) {
-					*intersects = false;
-					return -1000000;
+			if (isForward2) {
+				if (t2 > lastForwardT) {
+					lastForwardT = t2;
 				}
-				lastForward = i;
 			} else {
-				encounteredNonForward = true;
+				if (t2 < firstNonForwardT) {
+					firstNonForwardT = t2;
+				}
 			}
 		}
-		if (lastForward == -1) {
+		if (lastForwardT <= 0) {
 			*intersects = false;
 			return -1000000;
 		}
-		double t = intersections[lastForward].t;
-		if (t <= 0) {
+		if (firstNonForwardT <= lastForwardT) {
 			*intersects = false;
+			return -1000000;
 		}
 		*intersects = true;
-		return t;
+		return lastForwardT;
 	}
 
 public:
 	Color operator()(const double* direction, Color backgroundColor) {
-		for (size_t i = 0; i < numDims; i++) {
-			steps[i] = (std::abs(direction[i]) < 1e-6)? -1000000: 1/direction[i];
-			if (steps[i] < 0) {
-				signs[i] = -1;
-				steps[i] = -steps[i];
+		double *iter_camera, *iter_steps;
+		std::int8_t* iter_signs;
+		std::int32_t* iter_currBlock;
+		double *iter_location, *iter_offsets;
+		const double *iter_direction, *dir_end = direction + numDims;
+		for (iter_camera = camera, iter_steps = steps, iter_signs = signs,
+				iter_currBlock = currBlock, iter_location = location,
+				iter_offsets = offsets, iter_direction = direction;
+				iter_direction < dir_end;
+				++iter_camera, ++iter_steps, ++iter_signs, ++iter_currBlock,
+				++iter_location, ++iter_offsets, ++iter_direction) {
+			double diri = *iter_direction;
+			double step = ((-1e-6 < diri) && (diri < 1e-6))?
+					-1000000: 1/diri;
+			if (step < 0) {
+				*iter_signs = -1;
+				*iter_steps = -step;
 			} else {
-				signs[i] = 1;
+				*iter_signs = 1;
+				*iter_steps = step;
 			}
 
 
-			location[i] = camera[i];
+			double loc = *iter_location = *iter_camera;
 			// since blocks are [-0.5, 0.5]
-			currBlock[i] = std::floor(location[i] + 0.5);
-			offsets[i] = location[i] - currBlock[i];
+			double currB = *iter_currBlock = std::floor(loc + 0.5);
+			*iter_offsets = loc - currB;
 		}
 		bool intersects = true;
 		if (!isInBounds(numDims, currBlock, dimensions)) {
 			// just for the sake of floating-point imprecision.
 			double t = intersectMaze(direction, &intersects) + 1e-6;
 			if (intersects) {
-				for (size_t i = 0; i < numDims; i++) {
-					location[i] += direction[i] * t;
-					currBlock[i] = std::floor(location[i] + 0.5);
-					offsets[i] = location[i] - currBlock[i];
+				for (iter_currBlock = currBlock,
+						iter_location = location,
+						iter_offsets = offsets,
+						iter_direction = direction;
+						iter_direction < dir_end;
+						++iter_currBlock, ++iter_location,
+						++iter_offsets, ++iter_direction) {
+					double loc = *iter_location =
+							*iter_location + (*iter_direction) * t;
+					double currB = *iter_currBlock = std::floor(loc + 0.5);
+					*iter_offsets = loc - currB;
 				}
 			}
 		}
@@ -198,10 +205,17 @@ public:
 				// paranoia
 				minStep += 1e-6;
 				// we can safely assume that we don't have a parallel plane selected
-				for (size_t i = 0; i < numDims; i++) {
-					location[i] += direction[i] * minStep;
-					currBlock[i] = std::floor(location[i] + 0.5);
-					offsets[i] = location[i] - currBlock[i];
+				for (iter_currBlock = currBlock,
+						iter_location = location,
+						iter_offsets = offsets,
+						iter_direction = direction;
+						iter_direction < dir_end;
+						++iter_currBlock, ++iter_location,
+						++iter_offsets, ++iter_direction) {
+					double loc = *iter_location =
+							*iter_location + (*iter_direction) * minStep;
+					double currB = *iter_currBlock = std::floor(loc + 0.5);
+					*iter_offsets = loc - currB;
 				}
 			}
 		}
