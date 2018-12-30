@@ -19,9 +19,8 @@ int main() {
 	const double right[] = {-std::sin(theta), std::cos(theta), 0};
 	const double up[] = {0, 0, 1};
 	auto start = std::chrono::high_resolution_clock::now();
-	labyrinth_core::maze::MazeRenderer::render(output, maze,
-			camera, forward, right, up,
-			width, height, 100);
+	labyrinth_core::maze::MazeRenderer renderer (maze, camera);
+	renderer.render(output, forward, right, up, width, height, 100);
 	std::cout << 1000000000/static_cast<double>(
 			std::chrono::duration_cast<std::chrono::nanoseconds>(
 			std::chrono::high_resolution_clock::now() - start).count()) << std::endl;

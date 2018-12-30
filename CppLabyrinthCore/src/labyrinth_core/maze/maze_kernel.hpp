@@ -69,7 +69,7 @@ public:
 private:
 	bool isInBounds(size_t numDims,
 			const std::int32_t* location,
-			const std::uint32_t* dimensions) {
+			const std::uint32_t* dimensions) const {
 		const std::int32_t* locationEnd = location + numDims;
 		for (; location < locationEnd; ++location, ++dimensions) {
 			if ((*location < 0) ||
@@ -80,7 +80,7 @@ private:
 		return true;
 	}
 
-	double intersectMaze(const double* direction, bool* intersects) {
+	double intersectMaze(const double* direction, bool* intersects) const {
 		// check if it intersects the maze at all
 		// using convex object method
 		double lastForwardT = -1000000;
@@ -134,7 +134,11 @@ private:
 	}
 
 public:
-	Color operator()(const double* direction, Color backgroundColor) {
+	/**
+	 * Writes output into output.
+	 */
+	void operator()(std::uint8_t* output,
+			const double* direction, Color backgroundColor) const {
 		double *iter_camera, *iter_steps;
 		std::int8_t* iter_signs;
 		std::int32_t* iter_currBlock;
@@ -219,7 +223,10 @@ public:
 			}
 		}
 
-		return result;
+		*output = result.r; ++output;
+		*output = result.g; ++output;
+		*output = result.b; ++output;
+		*output = result.a;
 	}
 
 };

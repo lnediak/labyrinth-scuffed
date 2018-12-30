@@ -13,8 +13,8 @@ class MazeViewer {
 
 };
 
-}
+} // maze
 
-}
+} // labyrinth_core
 
 #endif /* SRC_LABYRINTH_CORE_MAZE_MAZE_VIEWER_HPP_ */
