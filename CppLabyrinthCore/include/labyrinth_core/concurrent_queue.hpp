@@ -1,14 +1,16 @@
-#ifndef SRC_LABYRINTH_CORE_CONCURRENT_QUEUE_HPP_
-#define SRC_LABYRINTH_CORE_CONCURRENT_QUEUE_HPP_
+#ifndef INCLUDE_LABYRINTH_CORE_CONCURRENT_QUEUE_HPP_
+#define INCLUDE_LABYRINTH_CORE_CONCURRENT_QUEUE_HPP_
 
 #include <condition_variable>
 #include <mutex>
 #include <queue>
 #include <thread>
 
+namespace labyrinth_core {
+
 namespace multithread {
 
-template <class T>
+template<class T>
 class ConcurrentQueue {
 
 	std::queue<T> queue;
@@ -46,6 +48,8 @@ public:
 
 };
 
-}
+} // multithread
 
-#endif /* SRC_LABYRINTH_CORE_CONCURRENT_QUEUE_HPP_ */
+} // labyrinth_core
+
+#endif /* INCLUDE_LABYRINTH_CORE_CONCURRENT_QUEUE_HPP_ */

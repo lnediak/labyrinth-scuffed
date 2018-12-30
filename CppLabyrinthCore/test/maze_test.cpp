@@ -21,6 +21,7 @@ int main() {
 	labyrinth_core::maze::MazeRenderer renderer (maze, camera);
 	auto start = std::chrono::high_resolution_clock::now();
 	renderer.render(output, forward, right, up, width, height, 100);
+	renderer.waitForFinished();
 	double timeSpent = std::chrono::duration_cast<std::chrono::nanoseconds>(
 			std::chrono::high_resolution_clock::now() - start).count();
 	std::cout << 1000000000/timeSpent << "fps, " <<

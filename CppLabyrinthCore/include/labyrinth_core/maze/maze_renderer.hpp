@@ -1,10 +1,13 @@
-#ifndef SRC_LABYRINTH_CORE_MAZE_MAZE_RENDERER_HPP_
-#define SRC_LABYRINTH_CORE_MAZE_MAZE_RENDERER_HPP_
+#ifndef INCLUDE_LABYRINTH_CORE_MAZE_MAZE_RENDERER_HPP_
+#define INCLUDE_LABYRINTH_CORE_MAZE_MAZE_RENDERER_HPP_
 
 #include <labyrinth_core/concurrent_queue.hpp>
-#include <labyrinth_core/num_threads.hpp>
 #include <labyrinth_core/maze/maze_kernel.hpp>
+#include <labyrinth_core/num_threads.hpp>
 
+#include <algorithm>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -43,12 +46,11 @@ class MazeRenderer {
 	mutable multithread::ConcurrentQueue<Task> taskQueue;
 
 public:
-	MazeRenderer(const Maze& inMaze, const double* inCamera):
-		maze(inMaze, 0) {
+	MazeRenderer(const Maze& inMaze, const double* inCamera): maze(inMaze, 0) {
 		size_t numThreads = multithread::getNumThreads();
 		size_t numDims = maze.getNumDims();
 		camera = new double[numDims];
-		std::copy(inCamera, inCamera + numDims, camera);
+		setCamera(inCamera);
 		taskCount = 0;
 		for (size_t i = 0; i < numThreads; i++) {
 			threads.push_back(std::thread(
@@ -142,6 +144,13 @@ public:
 		std::copy(newCamera, newCamera + maze.getNumDims(), camera);
 	}
 
+	void waitForFinished() {
+		std::unique_lock<std::mutex> lock (taskMutex);
+		taskVar.wait(lock, [this] () -> bool {
+			return taskCount == 0;
+		});
+	}
+
 	void render(std::uint8_t* output, const double* forward,
 			const double* right, const double* up,
 			size_t width, size_t height, double fov) const {
@@ -151,17 +160,14 @@ public:
 
 		Color backgroundColor {0, 0, 0, 0xFF};
 
-		taskCount = threads.size();
 		for (size_t i = 0; i < threads.size(); i++) {
+			std::lock_guard<std::mutex> lock (taskMutex);
+			taskCount++;
 			taskQueue.push(Task{
 				false, output, forward, right, up,
 				width, height, i, scale, backgroundColor
 			});
 		}
-		std::unique_lock<std::mutex> lock (taskMutex);
-		taskVar.wait(lock, [this] () -> bool {
-			return taskCount == 0;
-		});
 	}
 
 };
@@ -170,4 +176,4 @@ public:
 
 } // labyrinth_core
 
-#endif /* SRC_LABYRINTH_CORE_MAZE_MAZE_RENDERER_HPP_ */
+#endif /* INCLUDE_LABYRINTH_CORE_MAZE_MAZE_RENDERER_HPP_ */

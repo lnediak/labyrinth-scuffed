@@ -1,5 +1,5 @@
-#ifndef SRC_LABYRINTH_CORE_MAZE_MAZE_HPP_
-#define SRC_LABYRINTH_CORE_MAZE_MAZE_HPP_
+#ifndef INCLUDE_LABYRINTH_CORE_MAZE_MAZE_HPP_
+#define INCLUDE_LABYRINTH_CORE_MAZE_MAZE_HPP_
 
 #include <labyrinth_core/color.hpp>
 
@@ -148,4 +148,4 @@ public:
 
 } // labyrinth_core
 
-#endif /* SRC_LABYRINTH_CORE_MAZE_MAZE_HPP_ */
+#endif /* INCLUDE_LABYRINTH_CORE_MAZE_MAZE_HPP_ */
