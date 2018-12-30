@@ -18,12 +18,13 @@ int main() {
 	const double forward[] = {std::cos(theta), std::sin(theta), 0};
 	const double right[] = {-std::sin(theta), std::cos(theta), 0};
 	const double up[] = {0, 0, 1};
-	auto start = std::chrono::high_resolution_clock::now();
 	labyrinth_core::maze::MazeRenderer renderer (maze, camera);
+	auto start = std::chrono::high_resolution_clock::now();
 	renderer.render(output, forward, right, up, width, height, 100);
-	std::cout << 1000000000/static_cast<double>(
-			std::chrono::duration_cast<std::chrono::nanoseconds>(
-			std::chrono::high_resolution_clock::now() - start).count()) << std::endl;
+	double timeSpent = std::chrono::duration_cast<std::chrono::nanoseconds>(
+			std::chrono::high_resolution_clock::now() - start).count();
+	std::cout << 1000000000/timeSpent << "fps, " <<
+			timeSpent/1000000000 << "s" << std::endl;
 	unsigned lodepng_error = lodepng::encode("/home/study/produced.png", output,
 			width, height);
 	delete[] output;

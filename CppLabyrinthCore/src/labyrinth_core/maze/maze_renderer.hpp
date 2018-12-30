@@ -17,11 +17,9 @@ namespace maze {
 class MazeRenderer {
 
 	Maze maze;
-	MazeKernel kernel;
+	double* camera;
 
 	std::vector<std::thread> threads;
-	// each thread has its own
-	std::vector<double*> tmpdirs;
 
 	struct Task {
 
@@ -30,8 +28,11 @@ class MazeRenderer {
 		const double* forward;
 		const double* right;
 		const double* up;
-		double rcomponent;
-		double ucomponent;
+		size_t width;
+		size_t height;
+		// this task is all rows for which row % numThreads = modulo
+		size_t modulo;
+		double scale;
 		Color backgroundColor;
 
 	};
@@ -42,45 +43,71 @@ class MazeRenderer {
 	mutable multithread::ConcurrentQueue<Task> taskQueue;
 
 public:
-	MazeRenderer(const Maze& maze, const double* camera):
-		maze(maze, 0), kernel(maze, camera) {
+	MazeRenderer(const Maze& inMaze, const double* inCamera):
+		maze(inMaze, 0) {
 		size_t numThreads = multithread::getNumThreads();
 		size_t numDims = maze.getNumDims();
+		camera = new double[numDims];
+		std::copy(inCamera, inCamera + numDims, camera);
 		taskCount = 0;
 		for (size_t i = 0; i < numThreads; i++) {
-			tmpdirs.push_back(new double[numDims]);
-			threads.push_back(std::thread([this, numDims, i] () -> void {
+			threads.push_back(std::thread(
+					[this, numThreads, numDims, i] () -> void {
+				MazeKernel kernel (maze, camera);
+				double* tmpdirection = new double[numDims];
+				double* tmpdirection_end = tmpdirection + numDims;
+				double* iter_tmpdir;
 				while (true) {
 					Task task = taskQueue.pop();
 					if (task.isDeath) {
+						delete[] tmpdirection;
 						break;
 					}
-					double magnitude = 0;
-					double rcomponent = task.rcomponent;
-					double ucomponent = task.ucomponent;
-					double* tmpdirection = tmpdirs[i];
-					double* tmpdirection_end = tmpdirection + numDims;
-					double* iter_tmpdir = tmpdirection;
-					const double* iter_forward = task.forward;
-					const double* iter_right = task.right;
-					const double* iter_up = task.up;
-					// just a loop
-					for (iter_tmpdir = tmpdirection;
-							iter_tmpdir < tmpdirection_end;
-							++iter_tmpdir, ++iter_forward,
-							++iter_right, ++iter_up) {
-						double value = *iter_tmpdir = (*iter_forward) +
-								rcomponent * (*iter_right) +
-								ucomponent * (*iter_up);
-						magnitude += value * value;
-					}
-					magnitude = std::sqrt(magnitude);
-					for (iter_tmpdir = tmpdirection;
-							iter_tmpdir < tmpdirection_end; ++iter_tmpdir) {
-						*iter_tmpdir /= magnitude;
-					}
+					kernel.setCamera(camera);
+					size_t width = task.width;
+					size_t height = task.height;
+					double scale = task.scale;
+					double magnitude;
+					double rcomponent, ucomponent;
+					const double* forward = task.forward;
+					const double* iter_forward;
+					const double* right = task.right;
+					const double* iter_right;
+					const double* up = task.up;
+					const double* iter_up;
+					std::uint8_t* output_iter =
+							task.output + task.modulo * width * 4;
+					for (size_t row = task.modulo;
+							row < task.height; row += numThreads) {
+						for (size_t col = 0; col < task.width; col++) {
+							magnitude = 0;
+							rcomponent = (col - width/2.0) * scale;
+							ucomponent = (height/2.0 - row) * scale;
+							iter_tmpdir = tmpdirection;
+							iter_forward = forward;
+							iter_right = right;
+							iter_up = up;
+							// just a loop
+							for (iter_tmpdir = tmpdirection;
+									iter_tmpdir < tmpdirection_end;
+									++iter_tmpdir, ++iter_forward,
+									++iter_right, ++iter_up) {
+								double value = *iter_tmpdir = (*iter_forward) +
+										rcomponent * (*iter_right) +
+										ucomponent * (*iter_up);
+								magnitude += value * value;
+							}
+							magnitude = std::sqrt(magnitude);
+							for (iter_tmpdir = tmpdirection;
+									iter_tmpdir < tmpdirection_end; ++iter_tmpdir) {
+								*iter_tmpdir /= magnitude;
+							}
 
-					kernel(task.output, tmpdirection, task.backgroundColor);
+							kernel(output_iter, tmpdirection, task.backgroundColor);
+							output_iter += 4;
+						}
+						output_iter += width * (numThreads - 1) * 4;
+					}
 					std::unique_lock<std::mutex> lock (taskMutex);
 					taskCount--;
 					lock.unlock();
@@ -99,19 +126,20 @@ public:
 
 	~MazeRenderer() {
 		maze.invalidate();
-		for (double* tmpdir: tmpdirs) {
-			delete[] tmpdir;
-		}
 		for (size_t i = 0; i < threads.size(); i++) {
 			taskQueue.push(Task{
 				true, nullptr, nullptr, nullptr, nullptr,
-				0.0, 0.0, Color{0, 0, 0, 0}
+				0, 0, 0, 0.0, Color{0, 0, 0, 0}
 			});
 		}
+		for (std::thread& thread: threads) {
+			thread.join();
+		}
+		delete[] camera;
 	}
 
 	void setCamera(const double* newCamera) {
-		kernel.setCamera(newCamera);
+		std::copy(newCamera, newCamera + maze.getNumDims(), camera);
 	}
 
 	void render(std::uint8_t* output, const double* forward,
@@ -123,17 +151,12 @@ public:
 
 		Color backgroundColor {0, 0, 0, 0xFF};
 
-		std::uint8_t* output_iter = output;
-		taskCount = width * height;
-		for (size_t row = 0; row < height; row++) {
-			for (size_t col = 0; col < width; col++, output_iter += 4) {
-				double rcomponent = (col - width/2.0) * scale;
-				double ucomponent = (height/2.0 - row) * scale;
-				taskQueue.push(Task{
-					false, output_iter, forward, right, up,
-					rcomponent, ucomponent, backgroundColor
-				});
-			}
+		taskCount = threads.size();
+		for (size_t i = 0; i < threads.size(); i++) {
+			taskQueue.push(Task{
+				false, output, forward, right, up,
+				width, height, i, scale, backgroundColor
+			});
 		}
 		std::unique_lock<std::mutex> lock (taskMutex);
 		taskVar.wait(lock, [this] () -> bool {
