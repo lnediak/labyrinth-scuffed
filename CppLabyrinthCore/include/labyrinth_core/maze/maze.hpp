@@ -23,6 +23,9 @@ class Maze {
 
 public:
 	Maze(size_t numDims, const std::uint32_t* inDimensions): numDims(numDims) {
+		if (numDims < 2) {
+			numDims = 2;
+		}
 		dimensions = new std::uint32_t[numDims];
 		tempProds = new std::uint64_t[numDims];
 		size_t currProd = 1;

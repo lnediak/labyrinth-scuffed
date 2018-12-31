@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+#include <cmath>
+
 namespace labyrinth_core {
 
 namespace maze {
@@ -16,6 +18,55 @@ class MazeViewer {
 	Maze maze;
 	MazeRenderer renderer;
 	double* camera;
+
+	static void projection(size_t numDims, double* output, const double* vec,
+			const double* basisVec1, const double* basisVec2) {
+		// the projection is B(B^T B)^-1 B^T vec.
+		// since basisVec1 is orthogonal to basisVec2, B^T B is I_2.
+		// B^T vec should be [basisVec1 dot vec, basisVec2 dot vec]^T
+		// then the projection is easy to get.
+		double btvecx = 0, btvecy = 0;
+		for (size_t i = 0; i < numDims; i++) {
+			btvecx += basisVec1[i] * vec[i];
+			btvecy += basisVec2[i] * vec[i];
+		}
+		for (size_t i = 0; i < numDims; i++) {
+			output[i] = basisVec1[i] * btvecx +
+					basisVec2[i] * btvecy;
+		}
+	}
+
+	/**
+	 * Makes vec orthogonal to basisVec1 and basisVec2.
+	 * Assumes that basisVec1 and basisVec2 are orthogonal already.
+	 */
+	static void makeOrthonormal(size_t numDims, double* vec,
+			const double* basisVec1, const double* basisVec2) {
+		// Then vec - projection is it after normalization.
+		// If it is too close to 0, offset vec by a bit randomly
+		// and it should work then.
+		double* tmp = new double[numDims];
+		double magnitude;
+		while (true) {
+			projection(numDims, tmp, vec, basisVec1, basisVec2);
+			magnitude = 0;
+			for (size_t i = 0; i < numDims; i++) {
+				tmp[i] = vec[i] - tmp[i];
+				magnitude += tmp[i] * tmp[i];
+			}
+			magnitude = std::sqrt(magnitude);
+			if (magnitude >= 1e-3) {
+				break;
+			}
+			for (size_t i = 0; i < numDims; i++) {
+				vec[i] += 1e-3;
+			}
+		}
+		for (size_t i = 0; i < numDims; i++) {
+			vec[i] = tmp[i] / magnitude;
+		}
+		delete[] tmp;
+	}
 
 public:
 	class Slice {
@@ -28,26 +79,32 @@ public:
 		size_t height;
 
 	public:
-		Slice(size_t numDims, const double* inForward,
-				const double* inRight, const double* inUp,
-				size_t width, size_t height):
-					numDims(numDims), width(width), height(height) {
+		Slice(size_t inNumDims, size_t width, size_t height):
+					numDims(inNumDims), width(width), height(height) {
+			if (numDims < 3) {
+				numDims = 3;
+			}
 			forward = new double[numDims];
-			setForward(inForward);
 			right = new double[numDims];
-			setRight(inRight);
 			up = new double[numDims];
-			setUp(inUp);
+			for (size_t i = 0; i < numDims; i++) {
+				forward[i] = 0;
+				right[i] = 0;
+				up[i] = 0;
+			}
+			forward[0] = 1;
+			right[1] = 1;
+			up[2] = 1;
 		}
 
 		Slice(const Slice& other): numDims(other.numDims),
 				width(other.width), height(other.height) {
 			forward = new double[numDims];
-			setForward(other.forward);
+			std::copy(other.forward, other.forward + numDims, forward);
 			right = new double[numDims];
-			setRight(other.right);
+			std::copy(other.right, other.right + numDims, right);
 			up = new double[numDims];
-			setUp(other.up);
+			std::copy(other.up, other.up + numDims, up);
 		}
 
 		Slice(Slice&& other): numDims(other.numDims),
@@ -73,12 +130,9 @@ public:
 				delete[] up;
 				up = new double[numDims];
 			}
-			setForward(other.forward);
-			other.forward = nullptr;
-			setRight(other.right);
-			other.right = nullptr;
-			setUp(other.up);
-			other.up = nullptr;
+			std::copy(other.forward, other.forward + numDims, forward);
+			std::copy(other.right, other.right + numDims, right);
+			std::copy(other.up, other.up + numDims, up);
 			width = other.width;
 			height = other.height;
 			return *this;
@@ -105,14 +159,33 @@ public:
 
 		void setForward(const double* inForward) {
 			std::copy(inForward, inForward + numDims, forward);
+			makeOrthonormal(numDims, forward, right, up);
 		}
 
 		void setRight(const double* inRight) {
 			std::copy(inRight, inRight + numDims, right);
+			makeOrthonormal(numDims, right, forward, up);
 		}
 
 		void setUp(const double* inUp) {
 			std::copy(inUp, inUp + numDims, up);
+			makeOrthonormal(numDims, up, forward, right);
+		}
+
+		bool setWidth(size_t newWidth) {
+			if (newWidth < 10) {
+				return false;
+			}
+			width = newWidth;
+			return true;
+		}
+
+		bool setHeight(size_t newHeight) {
+			if (newHeight < 10) {
+				return false;
+			}
+			height = newHeight;
+			return true;
 		}
 
 		~Slice() {
@@ -131,21 +204,65 @@ public:
 
 	class ViewerOptions {
 
-		std::vector<std::tuple<Slice, size_t, size_t>> slices;
+		size_t numDims;
+		std::vector<Slice> slices;
+		// rotatBindings[i][j] specifies how rotating in slice i affects slice j.
 		std::vector<std::vector<RotationalBinding>> rotatBindings;
 		double fov;
 
 	public:
-		explicit ViewerOptions(double fov = 90): fov(fov) {}
+		explicit ViewerOptions(size_t numDims,
+				double fov = 90): numDims(numDims), fov(fov) {}
 
-		void addSlice(const Slice& slice, size_t width, size_t height) {
-			slices.push_back(std::make_tuple(slice, width, height));
+		bool addSlice(const Slice& slice) {
+			if (slice.numDims != numDims) {
+				return false;
+			}
+			slices.push_back(slice);
 			size_t lastIndex = slices.size() - 1;
 			for (size_t i = 0; i < lastIndex; i++) {
 				rotatBindings[i].push_back(RotationalBinding::MATRIX);
 			}
 			rotatBindings.push_back(std::vector<RotationalBinding>(
 					lastIndex + 1, RotationalBinding::MATRIX));
+			return true;
+		}
+
+		bool resizeSlice(size_t index, size_t width, size_t height) {
+			if (index >= slices.size()) {
+				return false;
+			}
+			if (!slices[index].setWidth(width)) {
+				return false;
+			}
+			if (!slices[index].setHeight(height)) {
+				return false;
+			}
+			return true;
+		}
+
+		bool deleteSlice(size_t index) {
+			if (index >= slices.size()) {
+				return false;
+			}
+			slices.erase(slices.begin() + index);
+			rotatBindings.erase(rotatBindings.begin() + index);
+			for (size_t i = 0; i < rotatBindings.size(); i++) {
+				rotatBindings[i].erase(rotatBindings[i].begin() + index);
+			}
+			return true;
+		}
+
+		/**
+		 * Sets the rotational binding specifying how from is to affect to.
+		 */
+		bool setRotatBinding(size_t from, size_t to, RotationalBinding binding) {
+			if ((from >= slices.size()) || (to >= slices.size()) ||
+					(from == to)) {
+				return false;
+			}
+			rotatBindings[from][to] = binding;
+			return true;
 		}
 
 	};
@@ -153,14 +270,24 @@ public:
 private:
 	ViewerOptions options;
 	std::vector<std::uint8_t*> outputs;
+	size_t currSlice;
 
-	MazeViewer(const Maze& maze, std::vector<Slice> slices,
-			const ViewerOptions& options,
+	MazeViewer(const Maze& maze, const ViewerOptions& inOptions,
 			const double* inCamera): maze(maze, 0),
 					renderer(maze, inCamera),
-					options(options) {
-		camera = new double[maze.getNumDims()];
+					options(inOptions) {
+		if (maze.getNumDims() != options.numDims) {
+			options = ViewerOptions();
+		}
+		camera = new double[options.numDims];
 		setCamera(inCamera);
+		for (size_t i = 0; i < options.slices.size(); i++) {
+			outputs.push_back(
+					new std::uint8_t
+					[options.slices[i].width *
+					 options.slices[i].height * 4]);
+		}
+		currSlice = 0;
 	}
 
 	MazeViewer(MazeViewer& other) = delete;
@@ -172,13 +299,89 @@ private:
 
 	~MazeViewer() {
 		delete[] camera;
+		for (std::uint8_t* output: outputs) {
+			delete[] output;
+		}
 	}
 
 	void setCamera(const double* inCamera) {
 		std::copy(inCamera, inCamera + maze.getNumDims(), camera);
+		renderer.setCamera(inCamera);
 	}
 
-	std::vector<std::uint8_t*> render(); // FIXME: IMPLEMENT NEXT IMMEDIATLY
+	void addSlice(const Slice& slice) {
+		if (!options.addSlice(slice)) {
+			return;
+		}
+		outputs.push_back(new std::uint8_t[slice.width * slice.height * 4]);
+	}
+
+	void resizeSlice(size_t index, size_t width, size_t height) {
+		if (!options.resizeSlice(index, width, height)) {
+			return;
+		}
+		delete[] outputs[index];
+		outputs[index] = new std::uint8_t[width * height * 4];
+	}
+
+	void deleteSlice(size_t index) {
+		if (!options.deleteSlice(index)) {
+			return;
+		}
+		delete[] outputs[index];
+		outputs.erase(outputs.begin() + index);
+	}
+
+	void setRotatBinding(size_t from, size_t to, RotationalBinding binding) {
+		options.setRotatBinding(from, to, binding);
+	}
+
+	void setCurrSlice(size_t index) {
+		if (index >= options.slices.size()) {
+			return;
+		}
+		currSlice = index;
+	}
+
+private:
+	enum class Dir {
+		FORWARD, RIGHT, UP
+	};
+
+	void rotate(Dir from, Dir to, double theta) {
+		if (currSlice >= options.slices.size()) {
+			return;
+		}
+		// 0.0174532925199432957692 is PI / 180
+		double radTheta = theta * 0.0174532925199432957692;
+		double sinTheta = std::sin(radTheta);
+		double cosTheta = std::cos(radTheta);
+		//
+		for (size_t i = 0; i < options.numDims; i++) {
+
+		}
+	}
+
+public:
+
+
+	/**
+	 * Don't free these pointers. Okay?
+	 * They will be all freed in the destructor.
+	 */
+	std::vector<std::uint8_t*> render() {
+		for (size_t i = 0; i < options.slices.size(); i++) {
+			renderer.render(outputs[i],
+					options.slices[i].forward,
+					options.slices[i].right,
+					options.slices[i].up,
+					options.slices[i].width,
+					options.slices[i].height,
+					options.fov);
+		}
+		renderer.waitForFinished();
+		return outputs;
+	}
 
 };
 
