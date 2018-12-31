@@ -19,6 +19,10 @@ class MazeViewer {
 	MazeRenderer renderer;
 	double* camera;
 
+	/**
+	 * Outputs (into output) the projection of vec onto the space spanned by
+	 * basisVec1 and basisVec2, assuming they are an orthonormal basis.
+	 */
 	static void projection(size_t numDims, double* output, const double* vec,
 			const double* basisVec1, const double* basisVec2) {
 		// the projection is B(B^T B)^-1 B^T vec.
@@ -348,6 +352,67 @@ private:
 		FORWARD, RIGHT, UP
 	};
 
+	double* getDir(size_t slice, Dir dir) {
+		switch(dir) {
+		case Dir::FORWARD:
+			return options.slices[slice].forward;
+		case Dir::RIGHT:
+			return options.slices[slice].right;
+		case Dir::UP:
+			return options.slices[slice].up;
+		}
+		// impossible though. Just to calm down Eclipse.
+		return nullptr;
+	}
+
+	void rotateSliceMimic(size_t slice, Dir from, Dir to,
+			double sinTheta, double cosTheta) {
+		double* fromDir = getDir(slice, from);
+		double* toDir = getDir(slice, to);
+		double tmp1, tmp2;
+		for (size_t i = 0; i < options.numDims; i++) {
+			tmp1 = fromDir[i];
+			tmp2 = toDir[i];
+			fromDir[i] = tmp1 * cosTheta + tmp2 * sinTheta;
+			toDir[i] = -tmp1 * sinTheta + tmp2 * cosTheta;
+		}
+	}
+
+	void rotateVecByMatrix(double* vec, Dir from, Dir to,
+			double sinTheta, double cosTheta) {
+		double* tmp = new double[options.numDims];
+		double* remain = new double[options.numDims];
+		const double* fromDir = getDir(currSlice, from);
+		const double* toDir = getDir(currSlice, to);
+		projection(options.numDims, tmp, vec, fromDir, toDir);
+		double fromComponent = 0, toComponent = 0;
+		for (size_t i = 0; i < options.numDims; i++) {
+			fromComponent += tmp[i] * fromDir[i];
+			toComponent += tmp[i] * toDir[i];
+			remain[i] = vec[i] - tmp[i];
+		}
+		double newFromComponent = cosTheta * fromComponent +
+				sinTheta * toComponent;
+		double newToComponent = -sinTheta * fromComponent +
+				cosTheta * toComponent;
+		for (size_t i = 0; i < options.numDims; i++) {
+			vec[i] = remain[i] + newFromComponent * fromDir[i] +
+					newToComponent * toDir[i];
+		}
+		delete[] remain;
+		delete[] tmp;
+	}
+
+	void rotateSliceMatrix(size_t slice, Dir from, Dir to,
+			double sinTheta, double cosTheta) {
+		rotateVecByMatrix(options.slices[slice].forward,
+				from, to, sinTheta, cosTheta);
+		rotateVecByMatrix(options.slices[slice].right,
+				from, to, sinTheta, cosTheta);
+		rotateVecByMatrix(options.slices[slice].up,
+				from, to, sinTheta, cosTheta);
+	}
+
 	void rotate(Dir from, Dir to, double theta) {
 		if (currSlice >= options.slices.size()) {
 			return;
@@ -356,10 +421,22 @@ private:
 		double radTheta = theta * 0.0174532925199432957692;
 		double sinTheta = std::sin(radTheta);
 		double cosTheta = std::cos(radTheta);
-		//
-		for (size_t i = 0; i < options.numDims; i++) {
-
+		for (size_t i = 0; i < options.slices.size(); i++) {
+			if (i == currSlice) {
+				continue;
+			}
+			switch(options.rotatBindings[currSlice][i]) {
+			case RotationalBinding::NONE:
+				break;
+			case RotationalBinding::MIMIC:
+				rotateSliceMimic(i, from, to, sinTheta, cosTheta);
+				break;
+			case RotationalBinding::MATRIX:
+				rotateSliceMatrix(i, from, to, sinTheta, cosTheta);
+				break;
+			}
 		}
+		rotateSliceMimic(currSlice, from, to, sinTheta, cosTheta);
 	}
 
 public:
