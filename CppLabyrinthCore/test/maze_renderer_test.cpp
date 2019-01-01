@@ -7,7 +7,7 @@
 #include "libs/lodepng.h"
 
 void gen3D() {
-	const size_t width = 4000, height = 6000;
+	const size_t width = 500, height = 500;
 	const size_t numDims = 3;
 	const std::uint32_t inDimensions[] = {
 			10, 10, 10

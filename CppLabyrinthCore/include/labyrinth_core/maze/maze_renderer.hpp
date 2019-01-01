@@ -144,7 +144,7 @@ public:
 		std::copy(newCamera, newCamera + maze.getNumDims(), camera);
 	}
 
-	void waitForFinished() {
+	void waitForFinished() const {
 		std::unique_lock<std::mutex> lock (taskMutex);
 		taskVar.wait(lock, [this] () -> bool {
 			return taskCount == 0;

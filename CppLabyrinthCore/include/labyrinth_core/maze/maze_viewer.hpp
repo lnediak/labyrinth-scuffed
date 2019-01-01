@@ -82,6 +82,8 @@ public:
 		size_t width;
 		size_t height;
 
+		friend MazeViewer;
+
 	public:
 		Slice(size_t inNumDims, size_t width, size_t height):
 					numDims(inNumDims), width(width), height(height) {
@@ -214,6 +216,8 @@ public:
 		std::vector<std::vector<RotationalBinding>> rotatBindings;
 		double fov;
 
+		friend MazeViewer;
+
 	public:
 		explicit ViewerOptions(size_t numDims,
 				double fov = 90): numDims(numDims), fov(fov) {}
@@ -276,12 +280,13 @@ private:
 	std::vector<std::uint8_t*> outputs;
 	size_t currSlice;
 
+public:
 	MazeViewer(const Maze& maze, const ViewerOptions& inOptions,
 			const double* inCamera): maze(maze, 0),
 					renderer(maze, inCamera),
 					options(inOptions) {
 		if (maze.getNumDims() != options.numDims) {
-			options = ViewerOptions();
+			options = ViewerOptions(maze.getNumDims());
 		}
 		camera = new double[options.numDims];
 		setCamera(inCamera);
@@ -302,6 +307,7 @@ private:
 	MazeViewer& operator=(MazeViewer&& other) = delete;
 
 	~MazeViewer() {
+		maze.invalidate();
 		delete[] camera;
 		for (std::uint8_t* output: outputs) {
 			delete[] output;
@@ -349,11 +355,84 @@ private:
 
 private:
 	void move(const double* direction, double amount) {
-		//
+		MazeKernel kernel (maze, camera);
+		std::uint8_t output[4];
+		MazeKernel::Result result =
+				kernel(output, direction, Color{0, 0, 0, 0xFF});
+		double t = result.t - 1e-6;
+		if ((t >= amount) || result.block.empty()) {
+			const double* direction_end = direction + maze.getNumDims();
+			double* iter_camera = camera;
+			for (; direction < direction_end; ++direction, ++iter_camera) {
+				*iter_camera += amount * (*direction);
+			}
+		} else {
+			const double* direction_end = direction + maze.getNumDims();
+			double* iter_camera = camera;
+			for (; direction < direction_end; ++direction, ++iter_camera) {
+				*iter_camera += t * (*direction);
+			}
+		}
+		renderer.setCamera(camera);
 	}
 
 public:
-	// move
+	void moveForward(double amount) {
+		if (currSlice >= options.slices.size()) {
+			return;
+		}
+		move(options.slices[currSlice].forward, amount);
+	}
+
+	void moveUp(double amount) {
+		if (currSlice >= options.slices.size()) {
+			return;
+		}
+		move(options.slices[currSlice].up, amount);
+	}
+
+	void moveRight(double amount) {
+		if (currSlice >= options.slices.size()) {
+			return;
+		}
+		move(options.slices[currSlice].right, amount);
+	}
+
+	void moveDown(double amount) {
+		if (currSlice >= options.slices.size()) {
+			return;
+		}
+		double* direction = new double[maze.getNumDims()];
+		for (size_t i = 0; i < maze.getNumDims(); i++) {
+			direction[i] = -options.slices[currSlice].up[i];
+		}
+		move(direction, amount);
+		delete[] direction;
+	}
+
+	void moveLeft(double amount) {
+		if (currSlice >= options.slices.size()) {
+			return;
+		}
+		double* direction = new double[maze.getNumDims()];
+		for (size_t i = 0; i < maze.getNumDims(); i++) {
+			direction[i] = -options.slices[currSlice].right[i];
+		}
+		move(direction, amount);
+		delete[] direction;
+	}
+
+	void moveBackwards(double amount) {
+		if (currSlice >= options.slices.size()) {
+			return;
+		}
+		double* direction = new double[maze.getNumDims()];
+		for (size_t i = 0; i < maze.getNumDims(); i++) {
+			direction[i] = -options.slices[currSlice].forward[i];
+		}
+		move(direction, amount);
+		delete[] direction;
+	}
 
 private:
 	enum class Dir {
@@ -477,7 +556,7 @@ public:
 	 * Don't free these pointers. Okay?
 	 * They will be all freed in the destructor.
 	 */
-	std::vector<std::uint8_t*> render() {
+	std::vector<std::uint8_t*> render() const {
 		for (size_t i = 0; i < options.slices.size(); i++) {
 			renderer.render(outputs[i],
 					options.slices[i].forward,

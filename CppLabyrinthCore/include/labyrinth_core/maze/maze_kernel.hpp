@@ -134,10 +134,18 @@ private:
 	}
 
 public:
+	struct Result {
+
+		double t;
+		// if this is empty, then no intersect.
+		std::vector<std::int32_t> block;
+
+	};
+
 	/**
 	 * Writes output into output.
 	 */
-	void operator()(std::uint8_t* output,
+	Result operator()(std::uint8_t* output,
 			const double* direction, Color backgroundColor) const {
 		double *iter_camera, *iter_steps;
 		std::int8_t* iter_signs;
@@ -167,10 +175,11 @@ public:
 			double currB = *iter_currBlock = std::floor(loc + 0.5);
 			*iter_offsets = loc - currB;
 		}
+		double t = 0;
 		bool intersects = true;
 		if (!isInBounds(numDims, currBlock, dimensions)) {
 			// just for the sake of floating-point imprecision.
-			double t = intersectMaze(direction, &intersects) + 1e-6;
+			t = intersectMaze(direction, &intersects) + 1e-6;
 			if (intersects) {
 				for (iter_currBlock = currBlock,
 						iter_location = location,
@@ -187,12 +196,14 @@ public:
 		}
 
 
+		bool intersectsBlock = false;
 		Color result = backgroundColor;
 		if (intersects) {
 			while (isInBounds(numDims, currBlock, dimensions)) {
 				std::uint8_t block = maze.getBlock(currBlock);
 				if (block != 0) {
 					result = Maze::getBlockColor(block, numDims, offsets);
+					intersectsBlock = true;
 					break;
 				}
 
@@ -208,6 +219,7 @@ public:
 				}
 				// paranoia (it actually doesn't work without this)
 				minStep += 1e-6;
+				t += minStep;
 				// we can safely assume that we don't have a parallel plane selected
 				for (iter_currBlock = currBlock,
 						iter_location = location,
@@ -227,6 +239,14 @@ public:
 		*output = result.g; ++output;
 		*output = result.b; ++output;
 		*output = result.a;
+
+		if (intersectsBlock) {
+			return Result{
+				t,
+				std::vector<std::int32_t>(currBlock, currBlock + numDims)
+			};
+		}
+		return Result{-1000000, std::vector<std::int32_t>()};
 	}
 
 };
