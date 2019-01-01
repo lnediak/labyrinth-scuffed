@@ -348,6 +348,14 @@ private:
 	}
 
 private:
+	void move(const double* direction, double amount) {
+		//
+	}
+
+public:
+	// move
+
+private:
 	enum class Dir {
 		FORWARD, RIGHT, UP
 	};
@@ -392,8 +400,8 @@ private:
 			remain[i] = vec[i] - tmp[i];
 		}
 		double newFromComponent = cosTheta * fromComponent +
-				sinTheta * toComponent;
-		double newToComponent = -sinTheta * fromComponent +
+				-sinTheta * toComponent;
+		double newToComponent = sinTheta * fromComponent +
 				cosTheta * toComponent;
 		for (size_t i = 0; i < options.numDims; i++) {
 			vec[i] = remain[i] + newFromComponent * fromDir[i] +
@@ -440,6 +448,29 @@ private:
 	}
 
 public:
+	void rotateUp(double theta) {
+		rotate(Dir::FORWARD, Dir::UP, theta);
+	}
+
+	void rotateRight(double theta) {
+		rotate(Dir::FORWARD, Dir::RIGHT, theta);
+	}
+
+	void rotateDown(double theta) {
+		rotate(Dir::UP, Dir::FORWARD, theta);
+	}
+
+	void rotateLeft(double theta) {
+		rotate(Dir::RIGHT, Dir::FORWARD, theta);
+	}
+
+	void rotateClockwise(double theta) {
+		rotate(Dir::UP, Dir::RIGHT, theta);
+	}
+
+	void rotateCounterClockwise(double theta) {
+		rotate(Dir::RIGHT, Dir::UP, theta);
+	}
 
 
 	/**
