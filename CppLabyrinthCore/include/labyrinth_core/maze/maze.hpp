@@ -32,9 +32,13 @@ public:
 		std::string seed;
 		double density;
 		double branchProbability;
+		double branchDeathProbability;
 		double twistProbability;
 		double flowProbability;
 		bool allowLoops;
+		size_t restrictNewAmount;
+		double loopProbability;
+		size_t maxUseless;
 
 		void validateDimensions() {
 			for (size_t i = 0; i < dimensions.size(); i++) {
@@ -100,6 +104,14 @@ public:
 			branchProbability = clampUnit(newBranchProbab);
 		}
 
+		double getBranchDeathProbability() const {
+			return branchDeathProbability;
+		}
+
+		void setBranchDeathProbability(double newBranchDeathProbab) {
+			branchDeathProbability = clampUnit(newBranchDeathProbab);
+		}
+
 		double getTwistProbability() const {
 			return twistProbability;
 		}
@@ -122,6 +134,34 @@ public:
 
 		void setAllowLoops(bool newAllowLoops) {
 			allowLoops = newAllowLoops;
+		}
+
+		size_t getRestrictNewAmount() const {
+			return restrictNewAmount;
+		}
+
+		void setRestrictNewAmount(size_t newRestrictNewAmount) {
+			if (newRestrictNewAmount < 1000000) {
+				restrictNewAmount = newRestrictNewAmount;
+			}
+		}
+
+		double getLoopProbability() const {
+			return loopProbability;
+		}
+
+		void setLoopProbability(double newLoopProbability) {
+			loopProbability = clampUnit(newLoopProbability);
+		}
+
+		size_t getMaxUseless() const {
+			return maxUseless;
+		}
+
+		void setMaxUseless(size_t newMaxUseless) {
+			if (newMaxUseless > 0) {
+				maxUseless = newMaxUseless;
+			}
 		}
 
 	};
@@ -306,12 +346,14 @@ public:
 private:
 	class Head {
 
+		// this is positive only when it is just created from branching.
+		size_t newNess;
 		// location
 		size_t ind;
 		std::vector<std::int32_t> loc;
 		// index of dimension if positive,
 		// plus numDims if negative.
-		size_t prevDir;
+		std::vector<size_t> prevDirs;
 
 		bool isLocFine(const Maze& maze, size_t prevInd) const {
 			size_t numDims = maze.getNumDims();
@@ -339,20 +381,35 @@ private:
 			return true;
 		}
 
+		size_t getPrevDir(size_t numDims) const {
+			if (prevDirs.empty()) {
+				return numDims * 2;
+			} else {
+				return prevDirs.back();
+			}
+		}
+
 	public:
-		Head(const Maze& maze, size_t inInd): ind(inInd) {
+		Head(const Maze& maze,
+				size_t inInd): ind(inInd) {
 			loc.resize(maze.getNumDims());
 			maze.fromInd(inInd, loc.begin());
-			prevDir = maze.getNumDims() * 2;
+			newNess = 0;
+		}
+
+		void markNew(const Maze& maze, const MazeGenerationOptions& options) {
+			newNess = options.getRestrictNewAmount();
 		}
 
 		size_t getNextDir(const Maze& maze,
 				const MazeGenerationOptions& options,
-				std::mt19937& mtrand) {
+				std::mt19937& mtrand,
+				std::uniform_real_distribution<double>& unitDistro) {
 			size_t numDims = maze.getNumDims();
 
 			double twistProbability = options.getTwistProbability();
 			double flowProbability = options.getFlowProbability();
+			double noLoopProbability = 1 - options.getLoopProbability();
 			bool allowLoops = options.getAllowLoops();
 
 			// direction is index, value is cumulative weight
@@ -361,7 +418,7 @@ private:
 			for (size_t dir = 0; dir < numDims * 2; dir++) {
 				// go in inverse directions
 				// static_cast for overload ambiguity resolution
-				if (std::abs(static_cast<int>(dir - prevDir)) == numDims) {
+				if (std::abs(static_cast<int>(dir - getPrevDir(numDims))) == numDims) {
 					possibilities[dir] = currWeight;
 					continue;
 				}
@@ -377,7 +434,9 @@ private:
 						continue;
 					}
 				}
-				if (!allowLoops) {
+				if (newNess ||
+						(!allowLoops) ||
+						(unitDistro(mtrand) < noLoopProbability)) {
 					size_t prevInd = ind;
 					move(maze, dir);
 					if (!isLocFine(maze, prevInd)) {
@@ -388,7 +447,7 @@ private:
 					reverse(maze, dir);
 				}
 				double weight;
-				if (dir == prevDir) {
+				if (dir == getPrevDir(numDims)) {
 					weight = 1 - twistProbability;
 				} else {
 					weight = twistProbability;
@@ -417,7 +476,6 @@ private:
 			return toreturn;
 		}
 
-	private:
 		void move(const Maze& maze, size_t dir) {
 			size_t numDims = maze.getNumDims();
 			if (dir < numDims) {
@@ -440,7 +498,28 @@ private:
 			}
 		}
 
-	public:
+		bool reverse(const Maze& maze) {
+			size_t numDims = maze.getNumDims();
+			if (getPrevDir(numDims) >= numDims * 2) {
+				return false;
+			}
+			size_t prevDir = prevDirs.back();
+			if (prevDir < numDims) {
+				if (loc[prevDir] - 1 <= 0) {
+					return false;
+				}
+			} else {
+				if (loc[prevDir - numDims] + 1 >=
+						static_cast<std::int32_t>(
+								maze.dimensions[prevDir - numDims] - 1)) {
+					return false;
+				}
+			}
+			reverse(maze, prevDir);
+			prevDirs.pop_back();
+			return true;
+		}
+
 		bool isEatUseful(const Maze& maze, size_t dir) {
 			move(maze, dir);
 			bool toreturn = maze.getBlock(ind) > 0;
@@ -450,11 +529,14 @@ private:
 
 		void eat(Maze& maze, size_t dir, size_t& numBlocksBroken) {
 			move(maze, dir);
-			prevDir = dir;
+			prevDirs.push_back(dir);
 			if (maze.getBlock(ind) > 0) {
 				numBlocksBroken++;
 			}
 			maze.setBlock(ind, 0);
+			if (newNess) {
+				newNess--;
+			}
 		}
 
 	};
@@ -464,6 +546,8 @@ private:
 	void generate(const MazeGenerationOptions& options) {
 		double density = options.getDensity();
 		double branchProbability = options.getBranchProbability();
+		double branchDeathProbability = options.getBranchDeathProbability();
+		size_t maxUseless = options.getMaxUseless();
 
 		// fill the maze before generating
 		std::uint8_t* iter_data = data;
@@ -487,35 +571,71 @@ private:
 		std::string seed = options.getSeed();
 		std::seed_seq seq (seed.begin(), seed.end());
 		std::mt19937 mtrand (seq);
-		std::uniform_real_distribution<double> branchDistro;
+		std::uniform_real_distribution<double> unitDistro;
 		size_t numBlocksBroken = 1;
 		size_t totalBlocks = 1;
 		for (size_t i = 0; i < numDims; i++) {
 			totalBlocks *= dimensions[i] - 2;
 		}
+		size_t streakOfUseless = 0;
 		while (!heads.empty() &&
 				((numBlocksBroken < density * totalBlocks) ||
-						(getBlock(last) == 1))) {
+						(getBlock(last) > 0))) {
 			size_t headsize = heads.size();
 			for (size_t headi = 0; headi < headsize; headi++) {
-				size_t dir = heads[headi].getNextDir(*this, options, mtrand);
-				if (dir >= numDims * 2) {
+				if ((unitDistro(mtrand) < branchDeathProbability) &&
+						(heads.size() > 2)) {
 					heads.erase(heads.begin() + headi);
 					headsize = heads.size();
 					continue;
 				}
-				if (heads[headi].isEatUseful(*this, dir)) {
+				size_t dir = heads[headi].getNextDir(*this, options,
+						mtrand, unitDistro);
+				if (dir >= numDims * 2) {
+					bool shouldContinue = false;
+					while (true) {
+						if (!heads[headi].reverse(*this)) {
+							heads.erase(heads.begin() + headi);
+							headsize = heads.size();
+							shouldContinue = true;
+							break;
+						}
+						dir = heads[headi].getNextDir(*this, options,
+								mtrand, unitDistro);
+						if (dir < numDims * 2) {
+							break;
+						}
+					}
+					if (shouldContinue) {
+						continue;
+					}
+				}
+				bool isUseful = heads[headi].isEatUseful(*this, dir);
+				heads[headi].eat(*this, dir, numBlocksBroken);
+				heads[headi].reverse(*this, dir);
+				if (isUseful) {
 					size_t i = 0;
 					while ((i < numDims * 2) &&
-							(branchDistro(mtrand) < branchProbability)) {
+							(unitDistro(mtrand) < branchProbability)) {
 						heads.push_back(heads[headi]);
+						heads.back().markNew(*this, options);
 						headsize = heads.size();
 						i++;
 					}
+					if (streakOfUseless > 0) streakOfUseless--;
+				} else {
+					streakOfUseless++;
 				}
-				heads[headi].eat(*this, dir, numBlocksBroken);
+				heads[headi].move(*this, dir);
+			}
+			if ((streakOfUseless >= maxUseless) && (getBlock(last) == 0)) {
+				break;
 			}
 		}
+		std::uniform_int_distribution<size_t> dirDistro (0, numDims - 1);
+		size_t dir = dirDistro(mtrand);
+		Head head (*this, last);
+		head.eat(*this, dir, numBlocksBroken);
 	}
 
 };
