@@ -35,9 +35,9 @@ public:
 		double branchDeathProbability;
 		double twistProbability;
 		double flowProbability;
-		bool allowLoops;
 		size_t restrictNewAmount;
 		double loopProbability;
+		double blockProbability;
 		size_t maxUseless;
 
 		void validateDimensions() {
@@ -128,14 +128,6 @@ public:
 			flowProbability = clampUnit(newFlowProbab);
 		}
 
-		bool getAllowLoops() const {
-			return allowLoops;
-		}
-
-		void setAllowLoops(bool newAllowLoops) {
-			allowLoops = newAllowLoops;
-		}
-
 		size_t getRestrictNewAmount() const {
 			return restrictNewAmount;
 		}
@@ -152,6 +144,14 @@ public:
 
 		void setLoopProbability(double newLoopProbability) {
 			loopProbability = clampUnit(newLoopProbability);
+		}
+
+		double getBlockProbability() const {
+			return blockProbability;
+		}
+
+		void setBlockProbability(double newBlockProbab) {
+			blockProbability = clampUnit(newBlockProbab);
 		}
 
 		size_t getMaxUseless() const {
@@ -357,6 +357,9 @@ private:
 
 		bool isLocFine(const Maze& maze, size_t prevInd) const {
 			size_t numDims = maze.getNumDims();
+			if (maze.getBlock(ind) == 0) {
+				return false;
+			}
 			for (size_t dir = 0; dir < numDims * 2; dir++) {
 				size_t indInConsideration;
 				if (dir < numDims) {
@@ -375,6 +378,60 @@ private:
 					continue;
 				}
 				if (maze.getBlock(indInConsideration) == 0) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		/**
+		 * Returns true if setting ind to air would not result in a 2x2 block.
+		 */
+		bool isLocNoBlock(const Maze& maze) {
+			size_t numDims = maze.getNumDims();
+			for (size_t dir = 0; dir < numDims * 2 - 1; dir++) {
+				for (size_t dir2 = dir + 1; dir2 < numDims * 2; dir2++) {
+					if (dir2 - dir == numDims) {
+						continue;
+					}
+					size_t inDir;
+					if (dir < numDims) {
+						if (loc[dir] + 1 >=
+								static_cast<std::int32_t>(maze.dimensions[dir] - 1)) {
+							continue;
+						}
+						inDir = ind + maze.tempProds[dir];
+					} else {
+						if (loc[dir - numDims] - 1 <= 0) {
+							continue;
+						}
+						inDir = ind - maze.tempProds[dir - numDims];
+					}
+					if (maze.getBlock(inDir) > 0) {
+						continue;
+					}
+					size_t inDir2;
+					size_t inDirDir2;
+					if (dir2 < numDims) {
+						if (loc[dir2] + 1 >=
+								static_cast<std::int32_t>(maze.dimensions[dir2] - 1)) {
+							continue;
+						}
+						inDir2 = ind + maze.tempProds[dir2];
+						inDirDir2 = inDir + maze.tempProds[dir2];
+					} else {
+						if (loc[dir2 - numDims] - 1 <= 0) {
+							continue;
+						}
+						inDir2 = ind - maze.tempProds[dir2 - numDims];
+						inDirDir2 = inDir - maze.tempProds[dir2 - numDims];
+					}
+					if (maze.getBlock(inDir2) > 0) {
+						continue;
+					}
+					if (maze.getBlock(inDirDir2) > 0) {
+						continue;
+					}
 					return false;
 				}
 			}
@@ -404,16 +461,17 @@ private:
 		size_t getNextDir(const Maze& maze,
 				const MazeGenerationOptions& options,
 				std::mt19937& mtrand,
-				std::uniform_real_distribution<double>& unitDistro) {
+				std::uniform_real_distribution<double>& unitDistro,
+				// direction is index, value is cumulative weight
+				// I don't want to call operator new[] each time.
+				double* possibilities) {
 			size_t numDims = maze.getNumDims();
 
 			double twistProbability = options.getTwistProbability();
 			double flowProbability = options.getFlowProbability();
 			double noLoopProbability = 1 - options.getLoopProbability();
-			bool allowLoops = options.getAllowLoops();
+			double noBlockProbability = 1 - options.getBlockProbability();
 
-			// direction is index, value is cumulative weight
-			double* possibilities = new double[numDims * 2];
 			double currWeight = 0;
 			for (size_t dir = 0; dir < numDims * 2; dir++) {
 				// go in inverse directions
@@ -435,11 +493,19 @@ private:
 					}
 				}
 				if (newNess ||
-						(!allowLoops) ||
 						(unitDistro(mtrand) < noLoopProbability)) {
 					size_t prevInd = ind;
 					move(maze, dir);
 					if (!isLocFine(maze, prevInd)) {
+						possibilities[dir] = currWeight;
+						reverse(maze, dir);
+						continue;
+					}
+					reverse(maze, dir);
+				}
+				if (unitDistro(mtrand) < noBlockProbability) {
+					move(maze, dir);
+					if (!isLocNoBlock(maze)) {
 						possibilities[dir] = currWeight;
 						reverse(maze, dir);
 						continue;
@@ -461,7 +527,6 @@ private:
 				possibilities[dir] = currWeight;
 			}
 			if (currWeight < 1e-6) {
-				delete[] possibilities;
 				return numDims * 2;
 			}
 			std::uniform_real_distribution<double> distro (0, currWeight);
@@ -472,7 +537,6 @@ private:
 					break;
 				}
 			}
-			delete[] possibilities;
 			return toreturn;
 		}
 
@@ -577,61 +641,55 @@ private:
 		for (size_t i = 0; i < numDims; i++) {
 			totalBlocks *= dimensions[i] - 2;
 		}
+		double* possibilities = new double[numDims * 2];
 		size_t streakOfUseless = 0;
 		while (!heads.empty() &&
 				((numBlocksBroken < density * totalBlocks) ||
 						(getBlock(last) > 0))) {
-			size_t headsize = heads.size();
-			for (size_t headi = 0; headi < headsize; headi++) {
-				if ((unitDistro(mtrand) < branchDeathProbability) &&
-						(heads.size() > 2)) {
-					heads.erase(heads.begin() + headi);
-					headsize = heads.size();
+			if ((unitDistro(mtrand) < branchDeathProbability) &&
+					(heads.size() > 2)) {
+				heads.erase(heads.begin());
+				continue;
+			}
+			size_t dir = heads[0].getNextDir(*this, options,
+					mtrand, unitDistro, possibilities);
+			if (dir >= numDims * 2) {
+				bool shouldContinue = false;
+				while (true) {
+					if (!heads[0].reverse(*this)) {
+						heads.erase(heads.begin());
+						shouldContinue = true;
+						break;
+					}
+					dir = heads[0].getNextDir(*this, options,
+							mtrand, unitDistro, possibilities);
+					if (dir < numDims * 2) {
+						break;
+					}
+				}
+				if (shouldContinue) {
 					continue;
 				}
-				size_t dir = heads[headi].getNextDir(*this, options,
-						mtrand, unitDistro);
-				if (dir >= numDims * 2) {
-					bool shouldContinue = false;
-					while (true) {
-						if (!heads[headi].reverse(*this)) {
-							heads.erase(heads.begin() + headi);
-							headsize = heads.size();
-							shouldContinue = true;
-							break;
-						}
-						dir = heads[headi].getNextDir(*this, options,
-								mtrand, unitDistro);
-						if (dir < numDims * 2) {
-							break;
-						}
-					}
-					if (shouldContinue) {
-						continue;
-					}
-				}
-				bool isUseful = heads[headi].isEatUseful(*this, dir);
-				heads[headi].eat(*this, dir, numBlocksBroken);
-				heads[headi].reverse(*this, dir);
-				if (isUseful) {
-					size_t i = 0;
-					while ((i < numDims * 2) &&
-							(unitDistro(mtrand) < branchProbability)) {
-						heads.push_back(heads[headi]);
-						heads.back().markNew(*this, options);
-						headsize = heads.size();
-						i++;
-					}
-					if (streakOfUseless > 0) streakOfUseless--;
-				} else {
-					streakOfUseless++;
-				}
-				heads[headi].move(*this, dir);
 			}
+			bool isUseful = heads[0].isEatUseful(*this, dir);
+			if (isUseful) {
+				size_t i = 0;
+				while ((i < numDims * 2) &&
+						(unitDistro(mtrand) < branchProbability)) {
+					heads.push_back(heads[0]);
+					heads.back().markNew(*this, options);
+					i++;
+				}
+				if (streakOfUseless > 0) streakOfUseless--;
+			} else {
+				streakOfUseless++;
+			}
+			heads[0].eat(*this, dir, numBlocksBroken);
 			if ((streakOfUseless >= maxUseless) && (getBlock(last) == 0)) {
 				break;
 			}
 		}
+		delete[] possibilities;
 		std::uniform_int_distribution<size_t> dirDistro (0, numDims - 1);
 		size_t dir = dirDistro(mtrand);
 		Head head (*this, last);
