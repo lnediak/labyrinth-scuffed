@@ -61,7 +61,7 @@ int initDisplay3D() {
 #undef MACRO_ADD_CONTROL
 
 	labyrinth_core::maze::MazeViewer::ViewerOptions viewerOpts (3);
-	const size_t width = 200, height = 200;
+	const size_t width = 500, height = 500;
 	labyrinth_core::maze::MazeViewer::Slice slice1 (3, width, height);
 	viewerOpts.addSlice(slice1);
 
@@ -122,7 +122,7 @@ int initDisplay4D() {
 	// rotational bindings later
 #undef MACRO_ADD_CONTROL
 
-	labyrinth_core::maze::MazeViewer::ViewerOptions viewerOpts (4);
+	labyrinth_core::maze::MazeViewer::ViewerOptions viewerOpts (4, 110);
 	const size_t width = 200, height = 200;
 	labyrinth_core::maze::MazeViewer::Slice slice1 (4, width, height);
 	viewerOpts.addSlice(slice1);
@@ -171,7 +171,7 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, 0);
 
-	GLFWwindow* window = glfwCreateWindow(800, 600, "OpenGL", 0, 0);
+	GLFWwindow* window = glfwCreateWindow(1000, 1000, "MazeDisplay test", 0, 0);
 	if (window == 0) {
 		return 1;
 	}
@@ -184,7 +184,7 @@ int main() {
 		return 1;
 	}
 
-	initDisplay4D();
+	initDisplay3D();
 
 	glfwSetKeyCallback(window, &keyCallback);
 	glfwSetFramebufferSizeCallback(window, &framebufferSizeCallback);
