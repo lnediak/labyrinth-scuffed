@@ -1,6 +1,7 @@
 #ifndef INCLUDE_LABYRINTH_DESKTOP_CONTROLS_HANDLER_HPP_
 #define INCLUDE_LABYRINTH_DESKTOP_CONTROLS_HANDLER_HPP_
 
+#include <limits>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -38,29 +39,13 @@ class ControlsHandler {
 
 	};
 
+protected:
 	std::unordered_map<
 	std::unordered_set<int>,
-	std::vector<T*>,
+	std::vector<T>,
 	IntSetHash<std::unordered_set<int>>> controls;
 
 public:
-	ControlsHandler(ControlsHandler& other) = delete;
-	ControlsHandler(const ControlsHandler& other) = delete;
-	// note: this is not delete
-	ControlsHandler(ControlsHandler&& other) = default;
-	ControlsHandler& operator=(ControlsHandler& other) = delete;
-	ControlsHandler& operator=(const ControlsHandler& other) = delete;
-	// note: this is not delete
-	ControlsHandler& operator=(ControlsHandler&& other) = default;
-
-	virtual ~ControlsHandler() {
-		for (const auto& pair: controls) {
-			for (T* oper: pair.second) {
-				delete oper;
-			}
-		}
-	}
-
 	/**
 	 * Do not free the pointers. Just let it go out of scope.
 	 */
@@ -71,13 +56,17 @@ public:
 	/**
 	 * Specifies that when all of keys are pressed,
 	 * all the operations in operations will be executed.
+	 * Does not allow keys to be empty.
 	 */
-	void addControl(std::unordered_set<int> keys,
-			std::vector<T*> operations) {
+	void addControl(const std::unordered_set<int>& keys,
+			const std::vector<T>& operations) {
+		if (keys.size() == 0) {
+			return;
+		}
 		controls[keys] = operations;
 	}
 
-	void removeControl(std::unordered_set<int> keys) {
+	void removeControl(const std::unordered_set<int>& keys) {
 		if (controls.count(keys) > 0) {
 			auto vec = controls[keys];
 			for (auto ptr: vec) {
