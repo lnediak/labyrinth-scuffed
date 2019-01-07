@@ -81,12 +81,14 @@ public:
 		double* up;
 		size_t width;
 		size_t height;
+		double aspect;
 
 		friend MazeViewer;
 
 	public:
 		Slice(size_t inNumDims, size_t width, size_t height):
-					numDims(inNumDims), width(width), height(height) {
+					numDims(inNumDims), width(width),
+					height(height) {
 			if (numDims < 3) {
 				numDims = 3;
 			}
@@ -101,10 +103,12 @@ public:
 			forward[0] = 1;
 			right[1] = 1;
 			up[2] = 1;
+			aspect = static_cast<double>(width) / height;
 		}
 
 		Slice(const Slice& other): numDims(other.numDims),
-				width(other.width), height(other.height) {
+				width(other.width), height(other.height),
+				aspect(other.aspect) {
 			forward = new double[numDims];
 			std::copy(other.forward, other.forward + numDims, forward);
 			right = new double[numDims];
@@ -114,7 +118,8 @@ public:
 		}
 
 		Slice(Slice&& other): numDims(other.numDims),
-				width(other.width), height(other.height) {
+				width(other.width), height(other.height),
+				aspect(other.aspect) {
 			forward = other.forward;
 			other.forward = nullptr;
 			right = other.right;
@@ -141,6 +146,7 @@ public:
 			std::copy(other.up, other.up + numDims, up);
 			width = other.width;
 			height = other.height;
+			aspect = other.aspect;
 			return *this;
 		}
 
@@ -160,6 +166,7 @@ public:
 			other.up = nullptr;
 			width = other.width;
 			height = other.height;
+			aspect = other.aspect;
 			return *this;
 		}
 
@@ -191,6 +198,14 @@ public:
 				return false;
 			}
 			height = newHeight;
+			return true;
+		}
+
+		bool setAspect(double newAspect) {
+			if ((newAspect < 1e-4) || (newAspect > 1e+4)) {
+				return false;
+			}
+			aspect = newAspect;
 			return true;
 		}
 
@@ -244,6 +259,16 @@ public:
 				return false;
 			}
 			if (!slices[index].setHeight(height)) {
+				return false;
+			}
+			return true;
+		}
+
+		bool setSliceAspect(size_t index, double aspect) {
+			if (index >= slices.size()) {
+				return false;
+			}
+			if (!slices[index].setAspect(aspect)) {
 				return false;
 			}
 			return true;
@@ -367,6 +392,10 @@ public:
 		}
 		delete[] outputs[index];
 		outputs[index] = new std::uint8_t[width * height * 4];
+	}
+
+	void setSliceAspect(size_t index, double aspect) {
+		options.setSliceAspect(index, aspect);
 	}
 
 	void deleteSlice(size_t index) {
@@ -643,6 +672,7 @@ public:
 					options.slices[i].up,
 					options.slices[i].width,
 					options.slices[i].height,
+					options.slices[i].aspect,
 					options.fov);
 		}
 		renderer.waitForFinished();

@@ -35,7 +35,8 @@ class MazeRenderer {
 		size_t height;
 		// this task is all rows for which row % numThreads = modulo
 		size_t modulo;
-		double scale;
+		double xscale;
+		double yscale;
 		Color backgroundColor;
 
 	};
@@ -68,7 +69,8 @@ public:
 					kernel.setCamera(camera);
 					size_t width = task.width;
 					size_t height = task.height;
-					double scale = task.scale;
+					double xscale = task.xscale;
+					double yscale = task.yscale;
 					double magnitude;
 					double rcomponent, ucomponent;
 					const double* forward = task.forward;
@@ -83,8 +85,8 @@ public:
 							row < task.height; row += numThreads) {
 						for (size_t col = 0; col < task.width; col++) {
 							magnitude = 0;
-							rcomponent = (col - width/2.0) * scale;
-							ucomponent = (height/2.0 - row) * scale;
+							rcomponent = (col - width/2.0) * xscale;
+							ucomponent = (height/2.0 - row) * yscale;
 							iter_tmpdir = tmpdirection;
 							iter_forward = forward;
 							iter_right = right;
@@ -131,7 +133,7 @@ public:
 		for (size_t i = 0; i < threads.size(); i++) {
 			taskQueue.push(Task{
 				true, nullptr, nullptr, nullptr, nullptr,
-				0, 0, 0, 0.0, Color{0, 0, 0, 0}
+				0, 0, 0, 0.0, 0.0, Color{0, 0, 0, 0}
 			});
 		}
 		for (std::thread& thread: threads) {
@@ -153,10 +155,17 @@ public:
 
 	void render(std::uint8_t* output, const double* forward,
 			const double* right, const double* up,
-			size_t width, size_t height, double fov) const {
+			size_t width, size_t height, double aspect, double fov) const {
 		// 0.00872664625997164788462 = 0.5 * PI / 180
 		double tanFov = std::tan(fov * 0.00872664625997164788462);
-		double scale = (height > width)? 2 * tanFov / height: 2 * tanFov / width;
+		double xscale, yscale;
+		if (aspect > 1) {
+			xscale = 2 * tanFov / width;
+			yscale = 2 * tanFov / (height * aspect);
+		} else {
+			xscale = 2 * tanFov * aspect / width;
+			yscale = 2 * tanFov / height;
+		}
 
 		Color backgroundColor {0, 0, 0, 0xFF};
 
@@ -165,7 +174,7 @@ public:
 			taskCount++;
 			taskQueue.push(Task{
 				false, output, forward, right, up,
-				width, height, i, scale, backgroundColor
+				width, height, i, xscale, yscale, backgroundColor
 			});
 		}
 	}
