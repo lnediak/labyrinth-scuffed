@@ -160,6 +160,7 @@ public:
 	};
 
 private:
+	labyrinth_core::maze::Maze maze;
 	labyrinth_core::maze::MazeViewer viewer;
 	DisplayOptions options;
 	GLuint texture;
@@ -176,11 +177,24 @@ private:
 	std::chrono::time_point<
 	std::chrono::high_resolution_clock> lastOperate;
 
+	void setAspect(size_t width, size_t height) {
+		auto sliceLocs = options.getSliceLocs();
+		for (size_t i = 0; i < options.getNumSlices(); i++) {
+			double w = std::get<2>(sliceLocs[i]) -
+					std::get<0>(sliceLocs[i]);
+			double h = std::get<1>(sliceLocs[i]) -
+					std::get<3>(sliceLocs[i]);
+			viewer.setSliceAspect(i, w * width / (h * height));
+		}
+	}
+
 public:
-	MazeDisplay(const labyrinth_core::maze::Maze& maze,
+	// here width and height are the width and height of the window.
+	MazeDisplay(labyrinth_core::maze::Maze&& inMaze,
 			const double* inCamera,
 			const DisplayOptions& displayOptions,
-			const labyrinth_core::maze::MazeViewer::ViewerOptions& viewerOptions);
+			const labyrinth_core::maze::MazeViewer::ViewerOptions& viewerOptions,
+			size_t width, size_t height);
 
 	MazeDisplay(MazeDisplay& other) = delete;
 	MazeDisplay(const MazeDisplay& other) = delete;
@@ -201,12 +215,10 @@ public:
 
 	void onKeyPress(int key) override {
 		keyboardState.insert(key);
-		lastOperate = decltype(lastOperate)::clock::now();
 	}
 
 	void onKeyRelease(int key) override {
 		keyboardState.erase(key);
-		lastOperate = decltype(lastOperate)::clock::now();
 	}
 
 	void onCharType(int unicode_codepoint) override {}

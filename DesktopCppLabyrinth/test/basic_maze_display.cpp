@@ -5,13 +5,13 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
+#include <utility>
 
 namespace {
 
-labyrinth_core::maze::Maze* maze = nullptr;
 labyrinth_desktop::maze::MazeDisplay* display = nullptr;
 
-int initDisplay3D() {
+int initDisplay3D(size_t width, size_t height) {
 	labyrinth_core::maze::Maze::MazeGenerationOptions genOpts;
 	genOpts.setDimensions({5, 5, 5});
 	genOpts.setSeed("1");
@@ -24,13 +24,15 @@ int initDisplay3D() {
 	genOpts.setLoopProbability(0);
 	genOpts.setBlockProbability(0);
 	genOpts.setMaxUseless(50000000);
-	maze = new labyrinth_core::maze::Maze(genOpts);
+	labyrinth_core::maze::Maze maze (genOpts);
 
 	const double camera[] = {1, 1, 1};
 
 	labyrinth_desktop::maze::MazeDisplay::DisplayOptions displayOpts;
 	displayOpts.setVelocity(5);
 	displayOpts.setRotatSensitivity(250);
+	displayOpts.setSquareness(labyrinth_desktop::maze::
+			MazeDisplay::DisplayOptions::Squareness::SMOOTH);
 	displayOpts.setSliceLocs({
 		{-1.0, 1.0, 1.0, -1.0}
 	});
@@ -61,16 +63,16 @@ int initDisplay3D() {
 #undef MACRO_ADD_CONTROL
 
 	labyrinth_core::maze::MazeViewer::ViewerOptions viewerOpts (3);
-	const size_t width = 500, height = 500;
-	labyrinth_core::maze::MazeViewer::Slice slice1 (3, width, height);
+	const size_t w = 500, h = 500;
+	labyrinth_core::maze::MazeViewer::Slice slice1 (3, w, h);
 	viewerOpts.addSlice(slice1);
 
 	display = new labyrinth_desktop::maze::MazeDisplay(
-			*maze, camera, displayOpts, viewerOpts);
+			std::move(maze), camera, displayOpts, viewerOpts, width, height);
 	return 0;
 }
 
-int initDisplay4D() {
+int initDisplay4D(size_t width, size_t height) {
 	labyrinth_core::maze::Maze::MazeGenerationOptions genOpts;
 	genOpts.setDimensions({5, 5, 5, 5});
 	genOpts.setSeed("1");
@@ -83,13 +85,15 @@ int initDisplay4D() {
 	genOpts.setLoopProbability(0);
 	genOpts.setBlockProbability(0);
 	genOpts.setMaxUseless(50000000);
-	maze = new labyrinth_core::maze::Maze(genOpts);
+	labyrinth_core::maze::Maze maze (genOpts);
 
 	const double camera[] = {1, 1, 1, 1};
 
 	labyrinth_desktop::maze::MazeDisplay::DisplayOptions displayOpts;
 	displayOpts.setVelocity(5);
 	displayOpts.setRotatSensitivity(250);
+	displayOpts.setSquareness(labyrinth_desktop::maze::
+			MazeDisplay::DisplayOptions::Squareness::SMOOTH);
 	displayOpts.setSliceLocs({
 		{-1.0,  1.0, -0.1,  0.1},
 		{ 0.1,  1.0,  1.0,  0.1},
@@ -123,8 +127,8 @@ int initDisplay4D() {
 #undef MACRO_ADD_CONTROL
 
 	labyrinth_core::maze::MazeViewer::ViewerOptions viewerOpts (4, 110);
-	const size_t width = 200, height = 200;
-	labyrinth_core::maze::MazeViewer::Slice slice1 (4, width, height);
+	const size_t w = 200, h = 200;
+	labyrinth_core::maze::MazeViewer::Slice slice1 (4, w, h);
 	viewerOpts.addSlice(slice1);
 	labyrinth_core::maze::MazeViewer::Slice slice2 = slice1;
 	const double secondDim[] = {0, 1, 0, 0};
@@ -140,7 +144,7 @@ int initDisplay4D() {
 	viewerOpts.addSlice(slice4);
 
 	display = new labyrinth_desktop::maze::MazeDisplay(
-			*maze, camera, displayOpts, viewerOpts);
+			std::move(maze), camera, displayOpts, viewerOpts, width, height);
 	return 0;
 }
 
@@ -171,7 +175,9 @@ int main() {
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, 0);
 
-	GLFWwindow* window = glfwCreateWindow(1000, 1000, "MazeDisplay test", 0, 0);
+	const size_t width = 1000, height = 1000;
+	GLFWwindow* window = glfwCreateWindow(width, height,
+			"MazeDisplay test", nullptr, nullptr);
 	if (window == 0) {
 		return 1;
 	}
@@ -184,7 +190,7 @@ int main() {
 		return 1;
 	}
 
-	initDisplay3D();
+	initDisplay3D(width, height);
 
 	glfwSetKeyCallback(window, &keyCallback);
 	glfwSetFramebufferSizeCallback(window, &framebufferSizeCallback);
@@ -199,5 +205,4 @@ int main() {
 		glfwPollEvents();
 	}
 	delete display;
-	delete maze;
 }

@@ -6,6 +6,10 @@ void labyrinth_desktop::maze::MazeDisplay::MazeDisplayOperation::operate(
 		MazeDisplay* display, const DisplayOptions& options) const {
 	auto dur = decltype(display->lastOperate)::clock::now() -
 			display->lastOperate;
+	if (display->lastOperate ==
+			decltype(decltype(display->lastOperate)::clock::now())()) {
+		dur = decltype(dur)::zero();
+	}
 	double seconds = std::chrono::duration_cast<
 			std::chrono::duration<double>>(dur).count();
 	double velocity = options.getVelocity();
@@ -238,13 +242,16 @@ GLuint makeShader(const std::string& src, GLenum type, std::string* errMsg) {
 }
 
 labyrinth_desktop::maze::MazeDisplay::MazeDisplay(
-		const labyrinth_core::maze::Maze& maze,
+		labyrinth_core::maze::Maze&& inMaze,
 		const double* inCamera,
 		const DisplayOptions& displayOptions,
-		const labyrinth_core::maze::MazeViewer::ViewerOptions& viewerOptions):
-			viewer(maze, viewerOptions, inCamera), options(displayOptions),
+		const labyrinth_core::maze::MazeViewer::ViewerOptions& viewerOptions,
+		size_t width, size_t height):
+			maze(inMaze, 0), viewer(inMaze, viewerOptions, inCamera),
+			options(displayOptions),
 			buf(0), program(0), posLoc(0), texcLoc(0),
 			mouseX(0.0), mouseY(0.0) {
+	inMaze.invalidate();
 	if (options.getNumSlices() != viewer.getNumSlices()) {
 		std::vector<std::tuple<double, double, double, double>> sliceLocs;
 		for (size_t i = 0; i < viewer.getNumSlices(); i++) {
@@ -256,12 +263,15 @@ labyrinth_desktop::maze::MazeDisplay::MazeDisplay(
 		}
 		options.setSliceLocs(sliceLocs);
 	}
+	setAspect(width, height);
 	camera = new double[maze.getNumDims()];
 	std::copy(inCamera, inCamera + maze.getNumDims(), camera);
 
 
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	if (texture == 0) {
@@ -371,4 +381,5 @@ void labyrinth_desktop::maze::MazeDisplay::display() {
 
 void labyrinth_desktop::maze::MazeDisplay::onWindowResize(size_t width, size_t height) {
 	glViewport(0, 0, width, height);
+	setAspect(width, height);
 }
