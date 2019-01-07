@@ -273,6 +273,25 @@ public:
 			return true;
 		}
 
+		bool toggleRotatBinding(size_t from, size_t to) {
+			if ((from >= slices.size()) || (to >= slices.size()) ||
+					(from == to)) {
+				return false;
+			}
+			switch(rotatBindings[from][to]) {
+			case RotationalBinding::NONE:
+				rotatBindings[from][to] = RotationalBinding::MIMIC;
+				break;
+			case RotationalBinding::MIMIC:
+				rotatBindings[from][to] = RotationalBinding::MATRIX;
+				break;
+			case RotationalBinding::MATRIX:
+				rotatBindings[from][to] = RotationalBinding::NONE;
+				break;
+			}
+			return true;
+		}
+
 	};
 
 private:
@@ -314,6 +333,22 @@ public:
 		}
 	}
 
+	size_t getNumDims() const {
+		return maze.getNumDims();
+	}
+
+	size_t getNumSlices() const {
+		return options.slices.size();
+	}
+
+	std::vector<std::pair<size_t, size_t>> getSliceSizes() const {
+		std::vector<std::pair<size_t, size_t>> toreturn;
+		for (const Slice& slice: options.slices) {
+			toreturn.push_back(std::make_pair(slice.width, slice.height));
+		}
+		return toreturn;
+	}
+
 	void setCamera(const double* inCamera) {
 		std::copy(inCamera, inCamera + maze.getNumDims(), camera);
 		renderer.setCamera(inCamera);
@@ -346,6 +381,10 @@ public:
 		options.setRotatBinding(from, to, binding);
 	}
 
+	void toggleRotatBinding(size_t from, size_t to) {
+		options.toggleRotatBinding(from, to);
+	}
+
 	void setCurrSlice(size_t index) {
 		if (index >= options.slices.size()) {
 			return;
@@ -359,15 +398,15 @@ private:
 		std::uint8_t output[4];
 		MazeKernel::Result result =
 				kernel(output, direction, Color{0, 0, 0, 0xFF});
-		double t = result.t - 1e-6;
+		double t = result.t - 1e-3;
 		if ((t >= amount) || result.block.empty()) {
-			const double* direction_end = direction + maze.getNumDims();
+			const double* direction_end = direction + options.numDims;
 			double* iter_camera = camera;
 			for (; direction < direction_end; ++direction, ++iter_camera) {
 				*iter_camera += amount * (*direction);
 			}
 		} else {
-			const double* direction_end = direction + maze.getNumDims();
+			const double* direction_end = direction + options.numDims;
 			double* iter_camera = camera;
 			for (; direction < direction_end; ++direction, ++iter_camera) {
 				*iter_camera += t * (*direction);
@@ -402,8 +441,8 @@ public:
 		if (currSlice >= options.slices.size()) {
 			return;
 		}
-		double* direction = new double[maze.getNumDims()];
-		for (size_t i = 0; i < maze.getNumDims(); i++) {
+		double* direction = new double[options.numDims];
+		for (size_t i = 0; i < options.numDims; i++) {
 			direction[i] = -options.slices[currSlice].up[i];
 		}
 		move(direction, amount);
@@ -414,8 +453,8 @@ public:
 		if (currSlice >= options.slices.size()) {
 			return;
 		}
-		double* direction = new double[maze.getNumDims()];
-		for (size_t i = 0; i < maze.getNumDims(); i++) {
+		double* direction = new double[options.numDims];
+		for (size_t i = 0; i < options.numDims; i++) {
 			direction[i] = -options.slices[currSlice].right[i];
 		}
 		move(direction, amount);
@@ -426,8 +465,8 @@ public:
 		if (currSlice >= options.slices.size()) {
 			return;
 		}
-		double* direction = new double[maze.getNumDims()];
-		for (size_t i = 0; i < maze.getNumDims(); i++) {
+		double* direction = new double[options.numDims];
+		for (size_t i = 0; i < options.numDims; i++) {
 			direction[i] = -options.slices[currSlice].forward[i];
 		}
 		move(direction, amount);
@@ -500,6 +539,44 @@ private:
 				from, to, sinTheta, cosTheta);
 	}
 
+	void gramSchmidtSlice(size_t slice) {
+		double* forward = options.slices[slice].forward;
+		double* right = options.slices[slice].right;
+		double* up = options.slices[slice].up;
+		double proj_u1_v2 = 0;
+		double mag_forward = 0;
+		for (size_t i = 0; i < options.numDims; i++) {
+			proj_u1_v2 += forward[i] * right[i];
+			mag_forward += forward[i] * forward[i];
+		}
+		proj_u1_v2 /= mag_forward;
+		for (size_t i = 0; i < options.numDims; i++) {
+			right[i] -= proj_u1_v2 * forward[i];
+		}
+		double btvecx = 0, btvecy = 0;
+		double mag_right = 0;
+		for (size_t i = 0; i < options.numDims; i++) {
+			btvecx += forward[i] * up[i];
+			btvecy += right[i] * up[i];
+			mag_right += right[i] * right[i];
+		}
+		btvecx /= mag_forward;
+		btvecy /= mag_right;
+		double mag_up = 0;
+		for (size_t i = 0; i < options.numDims; i++) {
+			up[i] -= forward[i] * btvecx + right[i] * btvecy;
+			mag_up += up[i] * up[i];
+		}
+		mag_forward = std::sqrt(mag_forward);
+		mag_right = std::sqrt(mag_right);
+		mag_up = std::sqrt(mag_up);
+		for (size_t i = 0; i < options.numDims; i++) {
+			forward[i] /= mag_forward;
+			right[i] /= mag_right;
+			up[i] /= mag_up;
+		}
+	}
+
 	void rotate(Dir from, Dir to, double theta) {
 		if (currSlice >= options.slices.size()) {
 			return;
@@ -522,8 +599,10 @@ private:
 				rotateSliceMatrix(i, from, to, sinTheta, cosTheta);
 				break;
 			}
+			gramSchmidtSlice(i);
 		}
 		rotateSliceMimic(currSlice, from, to, sinTheta, cosTheta);
+		gramSchmidtSlice(currSlice);
 	}
 
 public:
@@ -544,11 +623,11 @@ public:
 	}
 
 	void rotateClockwise(double theta) {
-		rotate(Dir::UP, Dir::RIGHT, theta);
+		rotate(Dir::RIGHT, Dir::UP, theta);
 	}
 
 	void rotateCounterClockwise(double theta) {
-		rotate(Dir::RIGHT, Dir::UP, theta);
+		rotate(Dir::UP, Dir::RIGHT, theta);
 	}
 
 

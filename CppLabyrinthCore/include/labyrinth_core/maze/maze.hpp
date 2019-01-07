@@ -337,8 +337,24 @@ public:
 			for (; offsets < offsetsEnd; ++offsets) {
 				sum += *offsets;
 			}
-			// normalize from (-n/2, n/2) to (100, 156)
-			std::uint8_t value = 128 + (sum * 56 / numDims);
+			// normalize from (-n/2, n/2) to (50, 206)
+			std::uint8_t value = 128 + (sum * 106 / numDims);
+			switch(block) {
+			case 1:
+				return Color{value, value, value, 0xFF};
+			case 2:
+				return Color{value, 0, 0, 0xFF};
+			case 3:
+				return Color{0, value, 0, 0xFF};
+			case 4:
+				return Color{0, 0, value, 0xFF};
+			case 5:
+				return Color{value, value, 0, 0xFF};
+			case 6:
+				return Color{value, 0, value, 0xFF};
+			case 7:
+				return Color{0, value, value, 0xFF};
+			}
 			return Color{value, value, value, 0xFF};
 		}
 	}
@@ -476,7 +492,8 @@ private:
 			for (size_t dir = 0; dir < numDims * 2; dir++) {
 				// go in inverse directions
 				// static_cast for overload ambiguity resolution
-				if (std::abs(static_cast<int>(dir - getPrevDir(numDims))) == numDims) {
+				if (std::abs(static_cast<int>(dir - getPrevDir(numDims))) ==
+						static_cast<int>(numDims)) {
 					possibilities[dir] = currWeight;
 					continue;
 				}
@@ -613,12 +630,15 @@ private:
 		double branchDeathProbability = options.getBranchDeathProbability();
 		size_t maxUseless = options.getMaxUseless();
 
+		std::string seed = options.getSeed();
+		std::seed_seq seq (seed.begin(), seed.end());
+		std::mt19937 mtrand (seq);
+		std::uniform_int_distribution<std::uint8_t> iDistro (1, 7);
 		// fill the maze before generating
 		std::uint8_t* iter_data = data;
 		std::uint8_t* data_end = data + dataLength;
 		for (; iter_data < data_end; ++iter_data) {
-			// fill the maze first
-			*iter_data = 1;
+			*iter_data = iDistro(mtrand);
 		}
 
 		// oneoneone is literally the ind of (1, 1, 1, 1, ....)
@@ -632,9 +652,6 @@ private:
 		setBlock(oneoneone, 0);
 		std::vector<Head> heads;
 		heads.push_back(Head(*this, oneoneone));
-		std::string seed = options.getSeed();
-		std::seed_seq seq (seed.begin(), seed.end());
-		std::mt19937 mtrand (seq);
 		std::uniform_real_distribution<double> unitDistro;
 		size_t numBlocksBroken = 1;
 		size_t totalBlocks = 1;
