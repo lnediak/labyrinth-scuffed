@@ -94,8 +94,8 @@ int initDisplay3D(size_t width, size_t height) {
 
 int initDisplay4D(size_t width, size_t height) {
 	labyrinth_core::maze::Maze::MazeGenerationOptions genOpts;
-	genOpts.setDimensions({8, 8, 8, 8});
-	genOpts.setSeed("1");
+	genOpts.setDimensions({6, 6, 6, 6});
+	genOpts.setSeed("2");
 	genOpts.setDensity(1);
 	genOpts.setBranchProbability(0.05);
 	genOpts.setBranchDeathProbability(0.01);
@@ -295,7 +295,7 @@ int main() {
 		return 1;
 	}
 
-	initDisplay4D(width, height);
+	initDisplay3D(width, height);
 
 	glfwSetKeyCallback(window, &keyCallback);
 	glfwSetFramebufferSizeCallback(window, &framebufferSizeCallback);

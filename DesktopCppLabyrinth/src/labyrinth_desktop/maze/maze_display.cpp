@@ -351,8 +351,8 @@ void labyrinth_desktop::maze::MazeDisplay::display() {
 	glBindBuffer(GL_ARRAY_BUFFER, buf);
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glEnableVertexAttribArray(posLoc);
-	glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
 	glEnableVertexAttribArray(texcLoc);
+	glVertexAttribPointer(posLoc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
 	glVertexAttribPointer(texcLoc, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
 			static_cast<float*>(nullptr) + 2);
 	std::vector<std::tuple<double, double, double, double>> locs =
@@ -361,21 +361,35 @@ void labyrinth_desktop::maze::MazeDisplay::display() {
 	std::vector<std::uint8_t*> result = viewer.render();
 	float l, u, r, b;
 	for (size_t i = 0; i < result.size(); i++) {
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, sizes[i].first, sizes[i].second,
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sizes[i].first, sizes[i].second,
 				0, GL_RGBA, GL_UNSIGNED_BYTE, result[i]);
 		l = std::get<0>(locs[i]);
 		u = std::get<1>(locs[i]);
 		r = std::get<2>(locs[i]);
 		b = std::get<3>(locs[i]);
-		const size_t numVerts = 16;
-		float verts[numVerts] = {
+		float verts[] = {
 				l, u, 0, 0,
 				r, u, 1, 0,
 				l, b, 0, 1,
 				r, b, 1, 1
 		};
-		glBufferData(GL_ARRAY_BUFFER, numVerts * sizeof(float), verts, GL_DYNAMIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		if (i == viewer.getCurrSlice()) {
+			std::uint8_t select[] = {0xFF, 0xFF, 0, 0xFF};
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
+					GL_RGBA, GL_UNSIGNED_BYTE, select);
+			float verts[] = {
+					l, u, 0, 0,
+					r, u, 0, 0,
+					r, b, 0, 0,
+					l, b, 0, 0,
+					l, u, 0, 0
+			};
+			glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_DYNAMIC_DRAW);
+			// just in case this changes in the future
+			glDrawArrays(GL_LINE_STRIP, 0, 5);
+		}
 	}
 }
 
