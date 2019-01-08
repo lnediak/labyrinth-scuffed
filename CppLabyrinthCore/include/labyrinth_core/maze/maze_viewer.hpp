@@ -229,13 +229,14 @@ public:
 		std::vector<Slice> slices;
 		// rotatBindings[i][j] specifies how rotating in slice i affects slice j.
 		std::vector<std::vector<RotationalBinding>> rotatBindings;
+		size_t numThreads;
 		double fov;
 
 		friend MazeViewer;
 
 	public:
-		explicit ViewerOptions(size_t numDims,
-				double fov = 90): numDims(numDims), fov(fov) {}
+		explicit ViewerOptions(size_t numDims): numDims(numDims),
+				numThreads(8), fov(100) {}
 
 		bool addSlice(const Slice& slice) {
 			if (slice.numDims != numDims) {
@@ -317,6 +318,26 @@ public:
 			return true;
 		}
 
+		bool setNumThreads(size_t newNumThreads) {
+			if ((newNumThreads < 1) || (newNumThreads > 1000)) {
+				return false;
+			}
+			numThreads = newNumThreads;
+			return true;
+		}
+
+		double getFov() const {
+			return fov;
+		}
+
+		bool setFov(double newFov) {
+			if ((newFov < 1) || (newFov > 179)) {
+				return false;
+			}
+			fov = newFov;
+			return true;
+		}
+
 	};
 
 private:
@@ -327,7 +348,7 @@ private:
 public:
 	MazeViewer(const Maze& maze, const ViewerOptions& inOptions,
 			const double* inCamera): maze(maze, 0),
-					renderer(maze, inCamera),
+					renderer(maze, inCamera, inOptions.getFov()),
 					options(inOptions) {
 		if (maze.getNumDims() != options.numDims) {
 			options = ViewerOptions(maze.getNumDims());
@@ -377,6 +398,10 @@ public:
 	void setCamera(const double* inCamera) {
 		std::copy(inCamera, inCamera + maze.getNumDims(), camera);
 		renderer.setCamera(inCamera);
+	}
+
+	void setFov(double newFov) {
+		options.setFov(newFov);
 	}
 
 	void addSlice(const Slice& slice) {

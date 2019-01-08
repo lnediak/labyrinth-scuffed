@@ -47,8 +47,8 @@ class MazeRenderer {
 	mutable multithread::ConcurrentQueue<Task> taskQueue;
 
 public:
-	MazeRenderer(const Maze& inMaze, const double* inCamera): maze(inMaze, 0) {
-		size_t numThreads = multithread::getNumThreads();
+	MazeRenderer(const Maze& inMaze, const double* inCamera,
+			size_t numThreads): maze(inMaze, 0) {
 		size_t numDims = maze.getNumDims();
 		camera = new double[numDims];
 		setCamera(inCamera);
