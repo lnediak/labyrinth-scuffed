@@ -439,6 +439,10 @@ public:
 		options.toggleRotatBinding(from, to);
 	}
 
+	size_t getCurrSlice() const {
+		return currSlice;
+	}
+
 	void setCurrSlice(size_t index) {
 		if (index >= options.slices.size()) {
 			return;
